@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🕐 坤时转换器 · 小黑子的专属计时器</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
+    font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow-x: hidden;
+    padding: 20px;
+  }
+
+  /* 飘落的篮球动画 */
+  .bg-basketball {
+    position: fixed;
+    font-size: 30px;
+    opacity: 0.08;
+    animation: fall linear infinite;
+    z-index: 0;
+    pointer-events: none;
+  }
+  @keyframes fall {
+    0%   { transform: translateY(-10vh) rotate(0deg); }
+    100% { transform: translateY(110vh) rotate(360deg); }
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 980px;
+    width: 100%;
+    text-align: center;
+  }
+
+  /* 标题 */
+  .title {
+    font-size: 42px;
+    font-weight: 900;
+    background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3, #54a0ff);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: rainbow 3s ease infinite;
+    margin-bottom: 5px;
+  }
+  @keyframes rainbow { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+
+  .subtitle {
+    color: #8899aa;
+    font-size: 15px;
+    margin-bottom: 30px;
+    letter-spacing: 2px;
+  }
+
+  /* 时钟显示 */
+  .clock-bar {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 18px 30px;
+    margin-bottom: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    backdrop-filter: blur(10px);
+  }
+  .clock-bar .label { color:#8899aa; font-size:14px; }
+  .clock-bar .time {
+    font-size: 36px;
+    font-weight: 800;
+    color: #feca57;
+    font-family: 'Courier New', monospace;
+    text-shadow: 0 0 20px rgba(254,202,87,0.5);
+  }
+  .clock-bar .sec { font-size: 20px; color: #ff6b6b; }
+  .clock-bar .date { color: #8899aa; font-size: 14px; margin-left: 6px; }
+
+  /* 卡片 */
+  .cards {
+    display: flex;
+    gap: 25px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 30px;
+  }
+
+  .card {
+    flex: 1;
+    min-width: 300px;
+    border-radius: 24px;
+    padding: 30px 25px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s;
+  }
+  .card:hover { transform: translateY(-5px); }
+
+  .card .avatar { font-size: 55px; margin-bottom: 10px; display: block; }
+  .card .name { font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 3px; }
+  .card .name .tag {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.65);
+    background: rgba(0,0,0,0.22);
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .card .off-time { font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 20px; }
+  .card .off-time .range { display: block; font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 4px; }
+
+  /* 倒计时 */
+  .countdown {
+    font-size: 52px;
+    font-weight: 900;
+    font-family: 'Courier New', monospace;
+    line-height: 1.1;
+    margin-bottom: 5px;
+  }
+  .countdown-label { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 15px; }
+
+  /* 坤时 */
+  .kun-box {
+    background: rgba(0,0,0,0.25);
+    border-radius: 16px;
+    padding: 15px;
+    margin-top: 10px;
+  }
+  .kun-value { font-size: 38px; font-weight: 900; text-shadow: 0 0 20px rgba(255,159,243,0.6); }
+  .kun-unit { font-size: 16px; color: rgba(255,255,255,0.7); }
+  .kun-hint { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 6px; }
+
+  /* 状态文案 */
+  .status-msg {
+    font-size: 15px;
+    font-weight: 600;
+    margin-top: 12px;
+    min-height: 22px;
+    color: rgba(255,255,255,0.85);
+  }
+
+  /* 底部搞笑文案 */
+  .footer-joke {
+    margin-top: 10px;
+    font-size: 16px;
+    color: #636e72;
+    font-style: italic;
+    min-height: 24px;
+    transition: color 0.5s, opacity 0.3s;
+  }
+  .footer-joke.highlight { color: #feca57; }
+
+  /* 进度条 */
+  .progress-wrap {
+    margin-top: 15px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 10px;
+    height: 10px;
+    overflow: hidden;
+  }
+  .progress-bar { height: 100%; border-radius: 10px; transition: width 1s linear; }
+
+  /* 说明 */
+  .formula-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px dashed rgba(255,255,255,0.15);
+    border-radius: 14px;
+    padding: 16px 22px;
+    margin-top: 25px;
+    color: #8899aa;
+    font-size: 14px;
+    line-height: 1.8;
+  }
+  .formula-box b { color: #feca57; }
+
+  /* 已下班提示 */
+  .after-work {
+    font-size: 30px;
+    font-weight: 900;
+    color: #ff6b6b;
+    text-shadow: 0 0 20px rgba(255,107,107,0.6);
+    animation: pulse 1s ease infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.7;transform:scale(1.05)} }
+
+  .confetti { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 999; }
+
+  /* ===== 设置按钮 ===== */
+  .btn {
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+    font-size: 14px;
+    border-radius: 10px;
+    padding: 9px 16px;
+    transition: transform 0.15s, opacity 0.15s;
+    color: #fff;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn:active { transform: translateY(0); }
+  .btn-primary { background: linear-gradient(135deg, #ff6b6b, #feca57); color: #222; font-weight: 700; }
+  .btn-ghost { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); }
+  .btn-danger { background: rgba(214,48,49,0.85); }
+  .btn-add { background: rgba(85,239,196,0.18); border: 1px dashed rgba(85,239,196,0.6); color: #55efc4; width: 100%; padding: 12px; }
+
+  /* 右上角悬浮小工具条：平时半透明，鼠标靠近时才完全显现，尽量不挡视野 */
+  .toolbar {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 1100;
+    display: flex;
+    gap: 8px;
+    opacity: 0.35;
+    transition: opacity 0.25s;
+  }
+  .toolbar:hover { opacity: 1; }
+  .toolbar .btn {
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  }
+  .toolbar .btn:hover { transform: none; }
+  .toolbar #resetBtn { color: #dfe6ee; }
+
+  /* ===== 设置弹窗 ===== */
+  .modal-mask {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 30px 15px;
+    overflow-y: auto;
+  }
+  .modal-mask.show { display: flex; }
+  .modal {
+    background: linear-gradient(160deg, #22263a, #1b1f31);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 720px;
+    padding: 25px;
+    color: #e8ecf3;
+    text-align: left;
+  }
+  .modal h2 { font-size: 22px; margin-bottom: 4px; }
+  .modal .desc { font-size: 13px; color: #8899aa; margin-bottom: 18px; }
+
+  .field { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .field label { font-size: 13px; color: #aab6c6; display: block; margin-bottom: 5px; }
+  .field .col { flex: 1; min-width: 120px; }
+  input[type=text], input[type=time], input[type=number], select {
+    width: 100%;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    padding: 9px 10px;
+    outline: none;
+  }
+  input:focus, select:focus { border-color: #feca57; }
+  select option { background: #22263a; color: #fff; }
+  input[type=time]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.6; }
+
+  .person-row {
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 14px;
+    background: rgba(255,255,255,0.03);
+    position: relative;
+  }
+  .person-row .row-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px; font-size: 13px; color: #8899aa;
+  }
+  .emoji-input { text-align: center; font-size: 20px !important; }
+
+  .modal-actions {
+    display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;
+    margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  .modal-actions .left { margin-right: auto; }
+
+  .empty-tip { color: #8899aa; font-size: 14px; text-align: center; padding: 20px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%) translateY(20px);
+    background: rgba(0,0,0,0.85); color: #fff; padding: 10px 20px; border-radius: 999px;
+    font-size: 14px; z-index: 1200; opacity: 0; pointer-events: none; transition: all 0.3s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 600px) {
+    .title { font-size: 30px; }
+    .clock-bar { flex-direction: column; gap: 6px; padding: 14px; }
+    .card { min-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 飘落的篮球背景 -->
+<div id="basketballs"></div>
+
+<div class="container">
+  <div class="title">🏀 坤时转换器 🕐</div>
+  <div class="subtitle">小黑子的专属计时器 · 距离下班的每一秒都在「坤」之中</div>
+
+  <!-- 当前时间 -->
+  <div class="clock-bar">
+    <span class="label">📍 现在时刻</span>
+    <span class="time" id="nowTime">--:--</span>
+    <span class="sec" id="nowSec">:--</span>
+    <span class="date" id="nowDate"></span>
+  </div>
+
+  <!-- 工具按钮（右上角悬浮） -->
+  <div class="toolbar">
+    <button class="btn btn-ghost" id="resetBtn" title="恢复默认（我 17:30 / 熊老师 18:00）">↺ 默认</button>
+    <button class="btn btn-primary" id="openSettings" title="自定义人物信息">⚙️ 设置</button>
+  </div>
+
+  <!-- 人物卡片（由 JS 渲染） -->
+  <div class="cards" id="cards"></div>
+
+  <div class="footer-joke" id="jokeText">「你离下班还有很久，但你离坤时很近。」</div>
+
+  <!-- 换算公式 -->
+  <div class="formula-box">
+    📐 <b>换算公式</b>：1 坤时 = <b id="ratioText">2.5</b> 小时<br>
+    💡 坤时 = 距离下班秒数 ÷ <b id="ratioSecText">9000</b>（即 2.5×3600）<br>
+    🎤 坤时越大，说明你离「鸡你太美」越近（不是）
+  </div>
+</div>
+
+<!-- 设置弹窗 -->
+<div class="modal-mask" id="modalMask">
+  <div class="modal">
+    <h2>⚙️ 自定义人物信息</h2>
+    <div class="desc">设置昵称、头像、上下班时间等，配置会保存在本机浏览器（localStorage），刷新不丢失。</div>
+
+    <div id="personList"></div>
+    <button class="btn btn-add" id="addPerson">＋ 添加一位打工人</button>
+
+    <div class="field" style="margin-top:18px;">
+      <div class="col">
+        <label>🕐 1 坤时 = 多少小时</label>
+        <input type="number" id="kunRatio" min="0.1" max="24" step="0.1">
+      </div>
+      <div class="col">
+        <label>🎨 默认配色（新增人物时使用）</label>
+        <select id="defaultTheme"></select>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost left" id="exportBtn">⬇️ 导出配置</button>
+      <button class="btn btn-ghost" id="importBtn">⬆️ 导入配置</button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
+      <button class="btn btn-danger" id="resetInside">恢复默认</button>
+      <button class="btn btn-ghost" id="cancelBtn">取消</button>
+      <button class="btn btn-primary" id="saveBtn">💾 保存并应用</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<canvas class="confetti" id="confetti"></canvas>
+
+<datalist id="emojiOptions">
+  <option value="🧑‍💻"></option><option value="🐻"></option><option value="🐔"></option>
+  <option value="🏀"></option><option value="👩‍💻"></option><option value="🧔"></option>
+  <option value="🐱"></option><option value="🐶"></option><option value="🦊"></option>
+  <option value="🐼"></option><option value="🦁"></option><option value="🐸"></option>
+  <option value="👑"></option><option value="🎤"></option><option value="💜"></option>
+  <option value="🔥"></option><option value="🌙"></option><option value="☕"></option>
+</datalist>
+
+<script>
+// ====== 默认配置 ======
+const STORAGE_KEY = 'kun-time-config-v1';
+
+const THEMES = {
+  slate : { name:'石墨灰', from:'#2d3436', to:'#636e72', glow:'rgba(99,110,114,0.45)',  count:'#55efc4', bar:['#00b894','#55efc4'] },
+  tomato: { name:'番茄红', from:'#b33939', to:'#e17055', glow:'rgba(227,112,85,0.45)',  count:'#ffeaa7', bar:['#d63031','#fdcb6e'] },
+  violet: { name:'紫罗兰', from:'#5f27cd', to:'#a55eea', glow:'rgba(165,94,234,0.45)',  count:'#ffeaa7', bar:['#8854d0','#a55eea'] },
+  forest: { name:'森林绿', from:'#0b7a4b', to:'#3ddc97', glow:'rgba(61,220,151,0.4)',   count:'#eaffea', bar:['#0b7a4b','#3ddc97'] },
+  ocean : { name:'深海蓝', from:'#0a3d62', to:'#3dc1d3', glow:'rgba(61,193,211,0.4)',   count:'#c7f9ff', bar:['#0a3d62','#3dc1d3'] },
+  gold  : { name:'土豪金', from:'#8a6d1f', to:'#f7b731', glow:'rgba(247,183,49,0.4)',   count:'#fff3c4', bar:['#e1b12c','#f7b731'] },
+  pink  : { name:'樱花粉', from:'#b5325f', to:'#ff9ff3', glow:'rgba(255,159,243,0.4)',  count:'#fff0fb', bar:['#b5325f','#ff9ff3'] }
+};
+
+function defaultConfig() {
+  return {
+    kunRatio: 2.5,
+    defaultTheme: 'slate',
+    people: [
+      { id: uid(), emoji:'🧑‍💻', name:'我',     tag:'卑微打工人', start:'09:00', off:'17:30', theme:'slate'  },
+      { id: uid(), emoji:'🐻',   name:'熊老师', tag:'卷王本王',   start:'09:00', off:'18:00', theme:'tomato' }
+    ]
+  };
+}
+
+function uid() { return 'p_' + Math.random().toString(36).slice(2, 9); }
+
+// ====== 配置读写 ======
+let config = loadConfig();
+
+function loadConfig() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultConfig();
+    const parsed = JSON.parse(raw);
+    return normalize(parsed);
+  } catch (e) {
+    return defaultConfig();
+  }
+}
+function saveConfig() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+}
+function normalize(cfg) {
+  const base = defaultConfig();
+  if (!cfg || typeof cfg !== 'object') return base;
+  const ratio = parseFloat(cfg.kunRatio);
+  const people = Array.isArray(cfg.people) ? cfg.people : base.people;
+  return {
+    kunRatio: isFinite(ratio) && ratio > 0 ? Math.min(24, ratio) : base.kunRatio,
+    defaultTheme: THEMES[cfg.defaultTheme] ? cfg.defaultTheme : base.defaultTheme,
+    people: people.map((p, i) => ({
+      id: p && p.id ? p.id : uid(),
+      emoji: (p && p.emoji) ? String(p.emoji).slice(0, 4) : '🧑‍💻',
+      name: (p && p.name) ? String(p.name).trim() : ('打工人' + (i + 1)),
+      tag: (p && p.tag) ? String(p.tag).trim() : '',
+      start: validTime(p && p.start) ? p.start : '09:00',
+      off: validTime(p && p.off) ? p.off : '18:00',
+      theme: THEMES[p && p.theme] ? p.theme : (Object.keys(THEMES)[i % Object.keys(THEMES).length])
+    }))
+  };
+}
+function validTime(t) { return typeof t === 'string' && /^\d{2}:\d{2}$/.test(t); }
+
+// ====== 搞笑文案库 ======
+const jokes = {
+  far: [
+    "「你离下班还有很久，但你离坤时很近。」",
+    "「别人在下班，你在坤时，这就是差距。」",
+    "「坤时过半，鸡你太美就在眼前（误）」",
+    "「只要心中想着坤，上班也是一种修行。」",
+    "「此刻的每一秒，都是在为坤时添砖加瓦。」",
+    "「坤时进度条比你的头发还长。」",
+    "「距离下班：遥不可及。距离坤时：一步之遥。」",
+    "「今天又是被坤时支配的一天呢，嘻嘻。」"
+  ],
+  mid: [
+    "「坤时已过大半，胜利就在前方！」",
+    "「半坤时已过，你比昨天更懂坤了。」",
+    "「加油！坤时的尽头就是下班！」",
+    "「只要不放弃，坤时终会归零！（大概）」",
+    "「坤时过半，说明你已经熬过了一半的'美'。」"
+  ],
+  near: [
+    "「坤时即将清零！准备好你的篮球了吗？」",
+    "「最后的坤时，坚持住！鸡你太美在等你！」",
+    "「马上就能'哎哟'地冲出办公室了！」",
+    "「坤时余额不足，请充值耐心。」",
+    "「最后一点坤时，熬过去就是自由！」"
+  ],
+  off: [
+    "「🎉 坤时已清零！快去练你的篮球吧！」",
+    "「鸡你太美～下班快乐～」",
+    "「坤时归零，你就是今天最靓的崽！」",
+    "「别看了，已经下班了，快溜！」",
+    "「坤时清零=快乐拉满，冲冲冲！」"
+  ]
+};
+
+// ====== 飘落篮球 ======
+function createBasketballs() {
+  const container = document.getElementById('basketballs');
+  const symbols = ['🏀', '🐔', '💜', '🎤'];
+  for (let i = 0; i < 20; i++) {
+    const el = document.createElement('span');
+    el.className = 'bg-basketball';
+    el.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+    el.style.left = Math.random() * 100 + '%';
+    el.style.animationDuration = (Math.random() * 10 + 8) + 's';
+    el.style.animationDelay = (Math.random() * 15) + 's';
+    el.style.fontSize = (Math.random() * 20 + 20) + 'px';
+    container.appendChild(el);
+  }
+}
+createBasketballs();
+
+// ====== 工具函数 ======
+function pad(n) { return n < 10 ? '0' + n : n; }
+function toSec(hhmm) { const [h, m] = hhmm.split(':').map(Number); return h * 3600 + m * 60; }
+function formatCountdown(t) {
+  t = Math.max(0, Math.floor(t));
+  return `${pad(Math.floor(t / 3600))}:${pad(Math.floor((t % 3600) / 60))}:${pad(t % 60)}`;
+}
+function clamp(n) { return Math.min(100, Math.max(0, n)); }
+
+// 计算剩余秒数与所处状态
+function getState(startSec, offSec, cur) {
+  const crossNight = offSec <= startSec;         // 下班时间在上班时间之前 => 跨夜班次
+  if (crossNight) {
+    if (cur >= startSec) return { left: offSec + 86400 - cur, working: true,  before: false };
+    if (cur < offSec)    return { left: offSec - cur,          working: true,  before: false };
+    return { left: 0, working: false, before: false };          // 处于休息时段
+  }
+  if (cur < startSec)    return { left: offSec - cur, working: true,  before: true };  // 还没上班
+  if (cur >= offSec)     return { left: 0, working: false, before: false };            // 已下班
+  return { left: offSec - cur, working: true, before: false };
+}
+
+// 今日工作进度
+function getProgress(startSec, offSec, cur) {
+  const crossNight = offSec <= startSec;
+  const offN = crossNight ? offSec + 86400 : offSec;
+  let elapsed = cur - startSec;
+  if (crossNight && elapsed < 0) elapsed += 86400;
+  if (!crossNight && elapsed < 0) elapsed = 0;
+  return clamp((elapsed / (offN - startSec)) * 100);
+}
+
+// ====== 渲染卡片 ======
+const cardsEl = document.getElementById('cards');
+let refs = {};        // id -> 元素引用
+let offState = {};    // id -> 是否已下班（用于彩带触发）
+
+function renderCards() {
+  cardsEl.innerHTML = '';
+  refs = {};
+  document.getElementById('ratioText').textContent = config.kunRatio;
+  document.getElementById('ratioSecText').textContent = Math.round(config.kunRatio * 3600);
+
+  if (!config.people.length) {
+    cardsEl.innerHTML = '<div class="empty-tip">还没有人物，点上方「⚙️ 自定义人物」添加吧～</div>';
+    return;
+  }
+
+  config.people.forEach(p => {
+    const t = THEMES[p.theme] || THEMES.slate;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.background = `linear-gradient(145deg, ${t.from}, ${t.to})`;
+    card.style.boxShadow = `0 10px 40px ${t.glow}`;
+    card.innerHTML = `
+      <span class="avatar">${escapeHtml(p.emoji)}</span>
+      <div class="name">${escapeHtml(p.name)}${p.tag ? `<span class="tag">${escapeHtml(p.tag)}</span>` : ''}</div>
+      <div class="off-time">
+        🎯 下班时间：${p.off}
+        <span class="range">🕗 在岗时段 ${p.start} - ${p.off}${toSec(p.off) <= toSec(p.start) ? '（跨夜）' : ''}</span>
+      </div>
+      <div class="countdown" data-role="countdown" style="color:${t.count};text-shadow:0 0 25px ${t.count}99">--:--:--</div>
+      <div class="countdown-label" data-role="label">距离下班还有</div>
+      <div class="kun-box">
+        <span class="kun-value" data-role="kun" style="color:#ff9ff3">--</span>
+        <span class="kun-unit"> 坤时</span>
+        <div class="kun-hint" data-role="kunHint"></div>
+      </div>
+      <div class="status-msg" data-role="status">加载中...</div>
+      <div class="progress-wrap">
+        <div class="progress-bar" data-role="progress" style="width:0%;background:linear-gradient(90deg, ${t.bar[0]}, ${t.bar[1]})"></div>
+      </div>`;
+    cardsEl.appendChild(card);
+    refs[p.id] = {
+      countdown: card.querySelector('[data-role=countdown]'),
+      label: card.querySelector('[data-role=label]'),
+      kun: card.querySelector('[data-role=kun]'),
+      kunHint: card.querySelector('[data-role=kunHint]'),
+      status: card.querySelector('[data-role=status]'),
+      progress: card.querySelector('[data-role=progress]')
+    };
+  });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+// ====== 每秒更新 ======
+function update() {
+  const now = new Date();
+  const cur = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+
+  document.getElementById('nowTime').textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  document.getElementById('nowSec').textContent = `:${pad(now.getSeconds())}`;
+  document.getElementById('nowDate').textContent =
+    `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} 周${'日一二三四五六'[now.getDay()]}`;
+
+  const KUN_SEC = config.kunRatio * 3600;
+  let minLeft = Infinity;
+
+  config.people.forEach(p => {
+    const r = refs[p.id];
+    if (!r) return;
+    const startSec = toSec(p.start), offSec = toSec(p.off);
+    const st = getState(startSec, offSec, cur);
+
+    if (st.working && st.left > 0) {
+      r.countdown.textContent = formatCountdown(st.left);
+      r.kun.textContent = (st.left / KUN_SEC).toFixed(4);
+      r.kun.style.color = '#ff9ff3';
+      r.label.textContent = `⏳ 距离${p.name}下班还有`;
+      r.status.textContent = st.before
+        ? '😪 还没到上班时间，别急着数坤时'
+        : statusText(st.left, p.name);
+      r.progress.style.width = (st.before ? 0 : getProgress(startSec, offSec, cur)) + '%';
+      r.kunHint.textContent = `≈ ${(st.left / 3600).toFixed(2)} 小时`;
+      if (st.left < minLeft) minLeft = st.left;
+      offState[p.id] = false;
+    } else {
+      r.countdown.innerHTML = '<div class="after-work">🎉 已下班！</div>';
+      r.kun.textContent = '0.0000';
+      r.kun.style.color = '#55efc4';
+      r.label.textContent = '✅ 坤时已清零';
+      r.status.textContent = `🏀 ${p.name}下班了！鸡你太美～`;
+      r.progress.style.width = '100%';
+      r.kunHint.textContent = '自由啦！';
+      if (!offState[p.id]) { offState[p.id] = true; fireConfetti(); }
+    }
+  });
+
+  updateJoke(minLeft);
+
+  // 标签页标题同步
+  if (minLeft === Infinity) document.title = '🎉 全员已下班 · 坤时转换器';
+  else document.title = `🕐 ${formatCountdown(minLeft)} · 坤时转换器`;
+}
+
+function statusText(left, name) {
+  if (left > 3 * 3600) return '😴 坤时漫长，摸鱼是正道';
+  if (left > 3600)     return '☕ 坤时已过大半，撑住！';
+  if (left > 1800)     return '📦 坤时余额不足一半！';
+  if (left > 300)      return '🔥 最后冲刺！坤时即将归零！';
+  return `🏃 ${name}收拾东西！准备溜！`;
+}
+
+function updateJoke(minLeft) {
+  const jokeEl = document.getElementById('jokeText');
+  let pool;
+  if (minLeft === Infinity)      { pool = jokes.off;  jokeEl.classList.add('highlight'); }
+  else if (minLeft < 1800)       { pool = jokes.near; jokeEl.classList.remove('highlight'); }
+  else if (minLeft < 4 * 3600)   { pool = jokes.mid;  jokeEl.classList.remove('highlight'); }
+  else                           { pool = jokes.far;  jokeEl.classList.remove('highlight'); }
+
+  const idx = Math.floor(Date.now() / 10000) % pool.length;
+  if (jokeEl.textContent !== pool[idx]) {
+    jokeEl.style.opacity = '0';
+    setTimeout(() => { jokeEl.textContent = pool[idx]; jokeEl.style.opacity = '1'; }, 300);
+  }
+}
+
+// ====== 彩带效果 ======
+const confettiCanvas = document.getElementById('confetti');
+const ctx = confettiCanvas.getContext('2d');
+let particles = [];
+function resizeCanvas() {
+  confettiCanvas.width = window.innerWidth;
+  confettiCanvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+function fireConfetti() {
+  for (let i = 0; i < 120; i++) {
+    particles.push({
+      x: Math.random() * confettiCanvas.width,
+      y: Math.random() * confettiCanvas.height - confettiCanvas.height,
+      w: Math.random() * 8 + 4,
+      h: Math.random() * 8 + 4,
+      color: ['#ff6b6b','#feca57','#48dbfb','#ff9ff3','#54a0ff','#55efc4'][Math.floor(Math.random() * 6)],
+      vx: Math.random() * 4 - 2,
+      vy: Math.random() * 3 + 2,
+      rot: Math.random() * 360,
+      vr: Math.random() * 10 - 5
+    });
+  }
+}
+function animateConfetti() {
+  ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+  particles = particles.filter(p => p.y < confettiCanvas.height);
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot * Math.PI / 180);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    ctx.restore();
+  });
+  requestAnimationFrame(animateConfetti);
+}
+animateConfetti();
+
+// ====== 设置弹窗 ======
+const modalMask = document.getElementById('modalMask');
+const personList = document.getElementById('personList');
+let draft = null; // 编辑中的副本
+
+function openModal() {
+  draft = JSON.parse(JSON.stringify(config));
+  renderPersonList();
+  document.getElementById('kunRatio').value = draft.kunRatio;
+  const sel = document.getElementById('defaultTheme');
+  sel.innerHTML = Object.keys(THEMES).map(k => `<option value="${k}">${THEMES[k].name}</option>`).join('');
+  sel.value = draft.defaultTheme;
+  modalMask.classList.add('show');
+}
+function closeModal() { modalMask.classList.remove('show'); }
+
+function renderPersonList() {
+  personList.innerHTML = '';
+  draft.people.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'person-row';
+    row.innerHTML = `
+      <div class="row-head">
+        <span>👤 人物 ${i + 1}</span>
+        <button class="btn btn-danger" data-del="${i}" style="padding:4px 10px;font-size:12px;">删除</button>
+      </div>
+      <div class="field">
+        <div class="col" style="max-width:90px;">
+          <label>头像</label>
+          <input type="text" class="emoji-input" list="emojiOptions" data-f="emoji" data-i="${i}" value="${escapeHtml(p.emoji)}" maxlength="4">
+        </div>
+        <div class="col">
+          <label>昵称</label>
+          <input type="text" data-f="name" data-i="${i}" value="${escapeHtml(p.name)}" placeholder="例如：我">
+        </div>
+        <div class="col">
+          <label>备注/称号（可留空）</label>
+          <input type="text" data-f="tag" data-i="${i}" value="${escapeHtml(p.tag)}" placeholder="例如：卷王本王">
+        </div>
+      </div>
+      <div class="field">
+        <div class="col">
+          <label>上班时间</label>
+          <input type="time" data-f="start" data-i="${i}" value="${p.start}">
+        </div>
+        <div class="col">
+          <label>下班时间</label>
+          <input type="time" data-f="off" data-i="${i}" value="${p.off}">
+        </div>
+        <div class="col">
+          <label>卡片配色</label>
+          <select data-f="theme" data-i="${i}">
+            ${Object.keys(THEMES).map(k => `<option value="${k}"${k === p.theme ? ' selected' : ''}>${THEMES[k].name}</option>`).join('')}
+          </select>
+        </div>
+      </div>`;
+    personList.appendChild(row);
+  });
+
+  personList.querySelectorAll('[data-f]').forEach(el => {
+    el.addEventListener('input', () => {
+      const i = +el.dataset.i;
+      draft.people[i][el.dataset.f] = el.value;
+    });
+  });
+  personList.querySelectorAll('[data-del]').forEach(el => {
+    el.addEventListener('click', () => {
+      draft.people.splice(+el.dataset.del, 1);
+      renderPersonList();
+    });
+  });
+}
+
+document.getElementById('addPerson').addEventListener('click', () => {
+  draft.people.push({
+    id: uid(), emoji: '🐔', name: '', tag: '', start: '09:00', off: '18:00', theme: draft.defaultTheme
+  });
+  renderPersonList();
+});
+
+document.getElementById('openSettings').addEventListener('click', openModal);
+document.getElementById('cancelBtn').addEventListener('click', closeModal);
+modalMask.addEventListener('click', e => { if (e.target === modalMask) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+document.getElementById('kunRatio').addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  draft.kunRatio = isFinite(v) && v > 0 ? Math.min(24, v) : draft.kunRatio;
+});
+document.getElementById('defaultTheme').addEventListener('change', e => { draft.defaultTheme = e.target.value; });
+
+document.getElementById('saveBtn').addEventListener('click', () => {
+  draft.people = draft.people.map((p, i) => ({
+    id: p.id || uid(),
+    emoji: (p.emoji || '🧑‍💻').slice(0, 4),
+    name: (p.name || '').trim() || ('打工人' + (i + 1)),
+    tag: (p.tag || '').trim(),
+    start: validTime(p.start) ? p.start : '09:00',
+    off: validTime(p.off) ? p.off : '18:00',
+    theme: THEMES[p.theme] ? p.theme : 'slate'
+  }));
+  config = normalize(draft);
+  saveConfig();
+  offState = {};
+  renderCards();
+  update();
+  closeModal();
+  toast('✅ 已保存并应用');
+});
+
+document.getElementById('resetInside').addEventListener('click', () => { resetDefault(); });
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (confirm('确定恢复为默认配置（我 17:30 / 熊老师 18:00）吗？')) resetDefault();
+});
+
+function resetDefault() {
+  config = defaultConfig();
+  saveConfig();
+  offState = {};
+  renderCards();
+  update();
+  closeModal();
+  toast('↺ 已恢复默认配置');
+}
+
+// 导出 / 导入
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'kun-time-config.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('⬇️ 配置已导出');
+});
+document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const cfg = normalize(JSON.parse(reader.result));
+      draft.people = cfg.people;
+      draft.kunRatio = cfg.kunRatio;
+      draft.defaultTheme = cfg.defaultTheme;
+      document.getElementById('kunRatio').value = draft.kunRatio;
+      document.getElementById('defaultTheme').value = draft.defaultTheme;
+      renderPersonList();
+      toast('⬆️ 已导入，点「保存并应用」生效');
+    } catch (err) {
+      toast('❌ 文件格式不正确');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ====== 启动 ======
+renderCards();
+update();
+setInterval(update, 1000);
+</script>
+</body>
+</html>
