@@ -546,6 +546,25 @@
   }
   .auto-msg.show { opacity: 1; }
 
+  /* 💗 G键开关：标题彩虹渐变 + 脉动 */
+  body.title-rainbow .title {
+    background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3, #54a0ff, #ff6b6b);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: titleRainbow 2.2s linear infinite, titlePulse 1.2s ease-in-out infinite;
+    filter: drop-shadow(0 0 16px rgba(254,202,87,0.7));
+  }
+  @keyframes titleRainbow {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 300% 50%; }
+  }
+  @keyframes titlePulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.04); }
+  }
+
   @media (max-width: 600px) {
     .title { font-size: 30px; }
     .clock-bar { flex-direction: column; gap: 6px; padding: 14px; }
@@ -1314,6 +1333,56 @@ document.addEventListener('keydown', e => {
       ), i * 250);
     }
   }
+  // 💗 快捷键 G → 标题彩虹渐变开关（让标题像歌词跑马灯那样）
+  if ((e.key === 'g' || e.key === 'G') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const ae = document.activeElement;
+    if (ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) return;
+    e.preventDefault();
+    document.body.classList.toggle('title-rainbow');
+    sfx.bounce();
+  }
+  // 🐔 快捷键 H → 背景小人集体跳起（鸡你太美动作）
+  if ((e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const ae = document.activeElement;
+    if (ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) return;
+    e.preventDefault();
+    if (window.__kunSync) window.__kunSync('jump');
+    sfx.thunder();
+    // 跳起+篮球雨
+    basketballRain(12);
+    // 屏幕中央爆一个
+    setTimeout(() => boomAt(window.innerWidth / 2, window.innerHeight / 2), 300);
+    kunMarquee('🐔 鸡你太美～ 背景全员跳起！');
+  }
+  // 🎲 快捷键 P → 随机彩蛋抽奖
+  if ((e.key === 'p' || e.key === 'P') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const ae = document.activeElement;
+    if (ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) return;
+    e.preventDefault();
+    const pool = ['tieShanKao', 'jump', 'rainbow', 'crash', 'marquee'];
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    sfx.bounce();
+    switch (pick) {
+      case 'tieShanKao': tieShanKao(); break;
+      case 'jump':
+        if (window.__kunSync) window.__kunSync('jump');
+        setTimeout(() => boomAt(window.innerWidth / 2, window.innerHeight / 2), 300);
+        break;
+      case 'rainbow':
+        document.getElementById('rainbowOverlay').classList.remove('active'); void document.getElementById('rainbowOverlay').offsetWidth;
+        document.getElementById('rainbowOverlay').classList.add('active');
+        setTimeout(() => document.getElementById('rainbowOverlay').classList.remove('active'), 2200);
+        break;
+      case 'crash':
+        if (window.__kunShockwave) {
+          window.__kunShockwave(window.innerWidth * 0.3, window.innerHeight * 0.5);
+          window.__kunShockwave(window.innerWidth * 0.7, window.innerHeight * 0.5);
+        }
+        sfx.thunder();
+        break;
+      case 'marquee': kunMarquee(); break;
+    }
+  }
 });
 
 // ====== 🆕 歌词跑马灯 ======
@@ -1734,6 +1803,37 @@ refreshSoundBtn();
       '..#...#.....#.......',
       '..#...#.....#.......',
       '..##..#....##.......'
+    ],
+    // 帧6: 跳起 —— 手举高、腿弯（鸡你太美动作）
+    [
+      '....#####...........',
+      '...##...##..........',
+      '..##.....##.........',
+      '..##.....##.........',
+      '..##.....##.........',
+      '...##...##..........',
+      '....#####...........',
+      '...###.###..........',   // 手举高
+      '..##.....##.........',
+      '.##.......##........',
+      '.#.........#........',
+      '..#.......#.........',
+      '..#.......#.........',
+      '...#####............',
+      '..##...##...........',
+      '..##...##...........',
+      '...#####............',
+      '..##...##...........',
+      '..#.#.#.#...........',
+      '..#.#.#.#...........',
+      '...#.#.#............',
+      '....###.............',
+      '....................',
+      '....................',
+      '....................',
+      '....................',
+      '....................',
+      '....................'
     ]
   ];
 
@@ -1773,15 +1873,16 @@ refreshSoundBtn();
     if (e.touches[0]) onMouseMove({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
   }, { passive: true });
 
-  // ===== 铁山靠同步：让所有背景小人集体冲锋！ =====
+  // ===== 铁山靠同步：让所有背景小人集体冲锋 / 跳起 =====
   let syncTimer = 0;
   let syncEndAt = 0;
   window.__kunSync = function(mode) {
     const now = performance.now();
     syncEndAt = now + 1400;  // 1.4 秒
-    // 全部跳到"冲向左侧"帧
+    // 根据 mode 选帧：默认冲锋帧2；'jump' = 跳起帧6
+    const targetFrame = mode === 'jump' ? 6 : 2;
     figures.forEach(f => {
-      f.frameIndex = 2;
+      f.frameIndex = targetFrame;
       f.frameTimer = 0;
       f.frameDuration = 55;       // 加速帧切换
       f.speed *= 3.2;             // 速度飙升
@@ -1789,7 +1890,7 @@ refreshSoundBtn();
     });
   };
 
-  // ===== 冲击波：从某点爆发出巨大光环，把背景小人震开 =====
+  // ===== 冲击波：从某点爆发出巨大光环，把背景小人 & 卡片都震开 =====
   let shockwaves = [];
   window.__kunShockwave = function(x, y) {
     shockwaves.push({
@@ -1797,14 +1898,21 @@ refreshSoundBtn();
       life: 700,          // 持续毫秒
       maxR: Math.max(canvas.width, canvas.height) * 0.9
     });
-    // 把小人震开：每个小人根据距离冲击波中心获得一个反向推力
+    // 把小人震开
     figures.forEach(f => {
       const dx = f.x - x;
       const dy = (f.y) - y;
       const dist = Math.hypot(dx, dy) || 1;
-      const push = Math.min(240, 2400 / dist);  // 越近推力越大
+      const push = Math.min(240, 2400 / dist);
       f.x += (dx / dist) * push * 0.25;
       f.y += (dy / dist) * push * 0.25 + (Math.random() - 0.5) * 30;
+    });
+    // 把页面上的卡片也震飞一下（联动！）
+    const cards = document.querySelectorAll('.card, .person-card');
+    cards.forEach(card => {
+      card.classList.remove('hit'); void card.offsetWidth;
+      card.classList.add('hit');
+      setTimeout(() => card.classList.remove('hit'), 1100);
     });
   };
 
@@ -2039,7 +2147,7 @@ setInterval(update, 1000);
     msgEl.classList.add('show');
     setTimeout(() => msgEl.classList.remove('show'), 3000);
 
-    if (r < 0.6) {
+    if (r < 0.35) {
       // 背景集体冲锋
       if (window.__kunSync) window.__kunSync();
       setTimeout(() => {
@@ -2051,6 +2159,14 @@ setInterval(update, 1000);
         }
       }, 250);
       basketballRain(6 + Math.floor(Math.random() * 6));
+    } else if (r < 0.6) {
+      // 背景集体跳起 + 中央爆炸
+      if (window.__kunSync) window.__kunSync('jump');
+      setTimeout(() => boomAt(
+        window.innerWidth * (0.2 + Math.random() * 0.6),
+        window.innerHeight * (0.3 + Math.random() * 0.5)
+      ), 300);
+      basketballRain(8);
     } else if (r < 0.85) {
       basketballRain(14);
       setTimeout(() => kunMarquee(), 400);
