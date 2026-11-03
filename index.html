@@ -306,6 +306,19 @@
     border-color: rgba(254,202,87,0.5);
     background: rgba(254,202,87,0.12);
   }
+  /* 📺 原版视频按钮 — 高亮吸睛 */
+  .toolbar .btn-video {
+    background: linear-gradient(135deg, rgba(255,107,107,0.85), rgba(254,202,87,0.85)) !important;
+    color: #222 !important;
+    border: 1px solid rgba(254,202,87,0.8) !important;
+    font-weight: 700;
+    box-shadow: 0 4px 16px rgba(255,107,107,0.35);
+    animation: videoBtnPulse 2.2s ease-in-out infinite;
+  }
+  @keyframes videoBtnPulse {
+    0%,100% { transform: translateY(0); box-shadow: 0 4px 16px rgba(255,107,107,0.35); }
+    50%     { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(254,202,87,0.55); }
+  }
 
   /* ===== 设置弹窗 ===== */
   .modal-mask {
@@ -767,6 +780,7 @@
     <button class="btn btn-ghost" id="resetBtn" title="恢复默认（我 17:30 / 熊老师 18:00）">↺ 默认</button>
     <button class="btn btn-primary" id="openSettings" title="自定义人物信息">⚙️ 设置</button>
     <button class="btn btn-ghost" id="eggToggle" title="查看所有彩蛋快捷键">🎮 彩蛋</button>
+    <a class="btn btn-ghost btn-video" href="https://v.qq.com/x/page/b0948da138k.html" target="_blank" rel="noopener" title="点我看原版！坤坤唱跳rap篮球">📺 原版视频</a>
   </div>
 
   <!-- 🎮 彩蛋快捷键面板（固定悬浮，可折叠） -->
