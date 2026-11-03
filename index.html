@@ -474,6 +474,78 @@
     85% { transform: translate(2px, -1px) rotate(0.1deg); }
   }
 
+  /* 📺 CRT 故障风滤镜（切换时挂到 body 上） */
+  body.crt {
+    position: relative;
+    overflow: hidden;
+  }
+  body.crt::before {
+    content: ''; position: fixed; inset: 0; z-index: 1900;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.10) 0px,
+        rgba(0,0,0,0.10) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+    pointer-events: none;
+    mix-blend-mode: multiply;
+    animation: crtFlicker 0.15s steps(4) infinite;
+  }
+  body.crt::after {
+    content: ''; position: fixed; inset: 0; z-index: 1901;
+    background: radial-gradient(circle at center, transparent 55%, rgba(0,0,0,0.55) 100%);
+    pointer-events: none;
+  }
+  @keyframes crtFlicker {
+    0%   { opacity: 0.92; transform: translateY(0); }
+    25%  { opacity: 1;    transform: translateY(-0.5px); }
+    50%  { opacity: 0.88; transform: translateY(0.5px); }
+    75%  { opacity: 0.95; transform: translateY(-0.2px); }
+    100% { opacity: 0.9;  transform: translateY(0); }
+  }
+  /* CRT 下文字 RGB 分离 */
+  body.crt .container {
+    animation: crtGlitch 0.35s steps(6) infinite;
+  }
+  @keyframes crtGlitch {
+    0%, 100% { filter: hue-rotate(0deg); transform: translate(0,0); }
+    15%      { transform: translate(-3px, 1px); }
+    30%      { transform: translate(2px, -2px); filter: hue-rotate(30deg); }
+    45%      { transform: translate(-1px, 2px); }
+    60%      { transform: translate(3px, -1px); filter: hue-rotate(-20deg); }
+    80%      { transform: translate(-2px, -2px); }
+  }
+
+  /* 🌈 彩虹全屏覆盖 */
+  #rainbowOverlay {
+    position: fixed; inset: 0; z-index: 2100; pointer-events: none;
+    background: linear-gradient(90deg, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #8000ff, #ff0000);
+    background-size: 200% 200%;
+    opacity: 0; mix-blend-mode: screen;
+  }
+  #rainbowOverlay.active {
+    animation: rainbowFlash 2.2s ease-out forwards;
+  }
+  @keyframes rainbowFlash {
+    0%   { opacity: 0; background-position: 0% 50%; }
+    25%  { opacity: 0.55; }
+    100% { opacity: 0; background-position: 300% 50%; }
+  }
+
+  /* 💥 背景小人自发铁山靠提示（随机出现在标题旁） */
+  .auto-msg {
+    position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
+    z-index: 1200; font-size: 13px; color: #ff9ff3;
+    background: rgba(255,159,243,0.12);
+    border: 1px solid rgba(255,159,243,0.4);
+    padding: 4px 12px; border-radius: 999px;
+    opacity: 0; transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .auto-msg.show { opacity: 1; }
+
   @media (max-width: 600px) {
     .title { font-size: 30px; }
     .clock-bar { flex-direction: column; gap: 6px; padding: 14px; }
@@ -494,6 +566,12 @@
 
 <!-- ⚡ 雷电闪白 overlay -->
 <div id="flashOverlay"></div>
+
+<!-- 🌈 彩虹覆盖 -->
+<div id="rainbowOverlay"></div>
+
+<!-- 💥 自发提示 -->
+<div class="auto-msg" id="autoMsg"></div>
 
 <!-- 点阵铁山靠背景 -->
 <canvas id="dotBg"></canvas>
@@ -1211,6 +1289,31 @@ document.addEventListener('keydown', e => {
     // 还来一波篮球雨
     basketballRain(22);
   }
+  // 📺 快捷键 C → CRT 故障风切换
+  if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const ae = document.activeElement;
+    if (ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) return;
+    e.preventDefault();
+    document.body.classList.toggle('crt');
+    sfx.bounce();
+  }
+  // 🌈 快捷键 F → 全屏彩虹闪烁
+  if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const ae = document.activeElement;
+    if (ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) return;
+    e.preventDefault();
+    const rb = document.getElementById('rainbowOverlay');
+    rb.classList.remove('active'); void rb.offsetWidth;
+    rb.classList.add('active');
+    setTimeout(() => rb.classList.remove('active'), 2300);
+    // 顺便再来点爆炸
+    for (let i = 0; i < 3; i++) {
+      setTimeout(() => boomAt(
+        window.innerWidth * (0.2 + Math.random() * 0.6),
+        window.innerHeight * (0.3 + Math.random() * 0.5)
+      ), i * 250);
+    }
+  }
 });
 
 // ====== 🆕 歌词跑马灯 ======
@@ -1910,6 +2013,59 @@ refreshSoundBtn();
 renderCards();
 update();
 setInterval(update, 1000);
+
+// ====== 🆕 自发彩蛋：背景小人偶尔自己搞事情 ======
+(function autoEggs() {
+  const msgs = [
+    '💥 背景里有人在练铁山靠...',
+    '🏀 听说有人在偷偷打篮球',
+    '🐔 屏幕自己动起来了！',
+    '💜 只因你太美～（背景小声）',
+    '⚡ 好像要搞事情',
+    '🔥 注意背景，小人疯了'
+  ];
+  function randNext() {
+    // 45 ~ 120 秒触发一次
+    return 45000 + Math.random() * 75000;
+  }
+  function triggerOne() {
+    // 60% 概率：背景小人集体冲锋 + 冲击波
+    // 25% 概率：篮球雨 + 一歌词
+    // 15% 概率：彩虹 F 效果
+    const r = Math.random();
+    const msg = msgs[Math.floor(Math.random() * msgs.length)];
+    const msgEl = document.getElementById('autoMsg');
+    msgEl.textContent = msg;
+    msgEl.classList.add('show');
+    setTimeout(() => msgEl.classList.remove('show'), 3000);
+
+    if (r < 0.6) {
+      // 背景集体冲锋
+      if (window.__kunSync) window.__kunSync();
+      setTimeout(() => {
+        if (window.__kunShockwave) {
+          window.__kunShockwave(
+            window.innerWidth * (0.25 + Math.random() * 0.5),
+            window.innerHeight * (0.3 + Math.random() * 0.5)
+          );
+        }
+      }, 250);
+      basketballRain(6 + Math.floor(Math.random() * 6));
+    } else if (r < 0.85) {
+      basketballRain(14);
+      setTimeout(() => kunMarquee(), 400);
+    } else {
+      const rb = document.getElementById('rainbowOverlay');
+      rb.classList.remove('active'); void rb.offsetWidth;
+      rb.classList.add('active');
+      setTimeout(() => rb.classList.remove('active'), 2200);
+    }
+    setTimeout(runNext, 2500 + Math.random() * 5000);
+  }
+  function runNext() { setTimeout(triggerOne, randNext()); }
+  // 第一次启动延迟 20s，给用户一点缓冲
+  setTimeout(runNext, 20000);
+})();
 </script>
 </body>
 </html>
