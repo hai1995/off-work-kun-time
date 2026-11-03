@@ -320,6 +320,19 @@
     50%     { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(254,202,87,0.55); }
   }
 
+  /* 🎬 点阵视频按钮 — 霓虹紫蓝渐变 */
+  .toolbar .btn-pixel {
+    background: linear-gradient(135deg, rgba(84,160,255,0.85), rgba(255,159,243,0.85)) !important;
+    color: #fff !important;
+    border: 1px solid rgba(255,159,243,0.8) !important;
+    font-weight: 700;
+    box-shadow: 0 4px 16px rgba(84,160,255,0.35);
+  }
+  .toolbar .btn-pixel.active {
+    background: linear-gradient(135deg, #ff6b6b, #feca57) !important;
+    animation: videoBtnPulse 1.2s ease-in-out infinite;
+  }
+
   /* ===== 设置弹窗 ===== */
   .modal-mask {
     position: fixed; inset: 0;
@@ -761,6 +774,16 @@
 <!-- 飘落的篮球背景 -->
 <div id="basketballs"></div>
 
+<!-- 🎬 视频源：被 pixelator 实时转换成点阵的那个视频 -->
+<!-- 用户点工具栏"点阵视频"或 D 键跳舞时会出现真实画面 -->
+<video id="srcVideo" hidden playsinline preload="metadata"
+       crossorigin="anonymous"
+       poster=""
+       aria-label="视频源（用于点阵化）">
+</video>
+<!-- Hidden sampling canvas -->
+<canvas id="pixelSampler" hidden></canvas>
+
 <div class="container">
   <div class="title" id="mainTitle" title="点我五下有惊喜">🏀 坤时转换器 🕐</div>
   <div class="subtitle">小黑子的专属计时器 · 距离下班的每一秒都在「坤」之中</div>
@@ -781,7 +804,10 @@
     <button class="btn btn-primary" id="openSettings" title="自定义人物信息">⚙️ 设置</button>
     <button class="btn btn-ghost" id="eggToggle" title="查看所有彩蛋快捷键">🎮 彩蛋</button>
     <a class="btn btn-ghost btn-video" href="https://v.qq.com/x/page/b0948da138k.html" target="_blank" rel="noopener" title="点我看原版！坤坤唱跳rap篮球">📺 原版视频</a>
+    <button class="btn btn-ghost btn-pixel" id="pixelVideoBtn" title="把本地视频转成黑白网格点阵背景">🎬 点阵视频</button>
   </div>
+  <!-- 文件选择器（隐藏） -->
+  <input type="file" id="pixelVideoInput" accept="video/*" hidden>
 
   <!-- 🎮 彩蛋快捷键面板（固定悬浮，可折叠） -->
   <div class="egg-panel" id="eggPanel">
@@ -2390,6 +2416,73 @@ refreshSoundBtn();
 
   // 人物实例：背景里同时有多个人在做铁山靠
   const FIGURE_COUNT = 5;
+
+  // ===== 🎬 视频点阵化系统 =====
+  const srcVideo = document.getElementById('srcVideo');
+  const sampler = document.getElementById('pixelSampler');
+  const samplerCtx = sampler.getContext('2d', { willReadFrequently: true });
+  let pixelMode = false;          // 是否显示视频点阵背景（覆盖原点阵小人）
+  let threshold = 140;            // 二值化阈值 0-255（越高越黑）
+  let pixelCols = 64;             // 横向网格数（越大越清晰）
+  let pixelRows = 36;
+  window.__pixelMode = {
+    get on() { return pixelMode; },
+    toggle() {
+      pixelMode = !pixelMode;
+      try {
+        if (pixelMode && srcVideo) srcVideo.play();
+        else if (srcVideo) srcVideo.pause();
+      } catch(e) {}
+      return pixelMode;
+    },
+    setThreshold(v) { threshold = Math.max(20, Math.min(240, v)); }
+  };
+
+  // 工具栏按钮绑定
+  (function bindPixelBtn() {
+    const btn = document.getElementById('pixelVideoBtn');
+    const fileInp = document.getElementById('pixelVideoInput');
+    if (!btn || !fileInp) return;
+    // 先点选本地视频
+    btn.addEventListener('click', () => {
+      if (!srcVideo || !srcVideo.src) {
+        fileInp.click();
+        return;
+      }
+      // 已有视频：开关模式
+      const state = window.__pixelMode.toggle();
+      btn.classList.toggle('active', state);
+      btn.textContent = state ? '🎬 点阵ON' : '🎬 点阵视频';
+      toast(state ? '🎬 点阵视频已开启' : '🎬 点阵视频已关闭');
+    });
+    fileInp.addEventListener('change', (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const url = URL.createObjectURL(f);
+      srcVideo.src = url;
+      srcVideo.muted = false;   // 用户选了文件 → 允许声音
+      srcVideo.loop = true;
+      srcVideo.addEventListener('loadedmetadata', () => {
+        toast('🎬 视频加载完成，正在点阵化... 自动开启！');
+        window.__pixelMode.toggle();
+        btn.classList.add('active');
+        btn.textContent = '🎬 点阵ON';
+      }, { once: true });
+      srcVideo.play().catch(() => toast('⚠️ 点击一下页面才能播放声音（浏览器策略）'));
+    });
+    // 支持直接粘贴远程 mp4 URL（控制台执行：loadPixelVideo('https://...')）
+    window.loadPixelVideo = function(url) {
+      srcVideo.src = url;
+      srcVideo.loop = true;
+      srcVideo.muted = false;
+      srcVideo.crossOrigin = 'anonymous';
+      srcVideo.play().catch(()=>{});
+      window.__pixelMode.on = true;
+      pixelMode = true;
+      btn.classList.add('active');
+      btn.textContent = '🎬 点阵ON';
+    };
+  })();
   let figures = [];
 
   // 篮球拖尾粒子
@@ -2534,6 +2627,57 @@ refreshSoundBtn();
     lastTime = now;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // ===== 🎬 视频点阵化绘制（最底层） =====
+    if (pixelMode && srcVideo && srcVideo.videoWidth) {
+      // 1) 把当前帧画到小 sampler canvas
+      sampler.width = pixelCols;
+      sampler.height = pixelRows;
+      try {
+        // 保持视频原比例，用 contain 绘制
+        const vw = srcVideo.videoWidth, vh = srcVideo.videoHeight;
+        const sr = pixelCols / pixelRows;
+        const vr = vw / vh;
+        let sw = pixelCols, sh = pixelRows, sx = 0, sy = 0;
+        if (vr > sr) { sh = pixelCols / vr; sy = (pixelRows - sh) / 2; }
+        else         { sw = pixelRows * vr; sx = (pixelCols - sw) / 2; }
+        samplerCtx.fillStyle = '#000';
+        samplerCtx.fillRect(0, 0, pixelCols, pixelRows);
+        samplerCtx.drawImage(srcVideo, sx, sy, sw, sh);
+        // 2) 取像素数据
+        const img = samplerCtx.getImageData(0, 0, pixelCols, pixelRows);
+        const data = img.data;
+        // 3) 画到主 canvas 作为点阵网格
+        const stepX = canvas.width / pixelCols;
+        const stepY = canvas.height / pixelRows;
+        ctx.fillStyle = '#ffffff';
+        for (let r = 0; r < pixelRows; r++) {
+          for (let c = 0; c < pixelCols; c++) {
+            const i = (r * pixelCols + c) * 4;
+            const lum = (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114);
+            // 黑白色：亮的点 = 圆点（视频里亮 → 屏幕上有一个白圆点）
+            if (lum > threshold) {
+              const cx = c * stepX + stepX * 0.5;
+              const cy = r * stepY + stepY * 0.5;
+              const size = Math.min(stepX, stepY) * 0.55;
+              ctx.beginPath();
+              ctx.arc(cx, cy, size, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        }
+      } catch(e) {
+        // 跨源视频会在这里 throw —— 提示用户
+        if (window._pixelWarned !== true) {
+          window._pixelWarned = true;
+          console.warn('点阵视频：跨源被拦截，请上传本地视频文件。', e.message);
+          toast('⚠️ 腾讯视频跨源被拦截，请点 🎬 点阵视频 → 选本地视频文件');
+          pixelMode = false;
+          const b = document.getElementById('pixelVideoBtn');
+          if (b) { b.classList.remove('active'); b.textContent = '🎬 点阵视频'; }
+        }
+      }
+    }
 
     // ===== 更新 & 绘制篮球拖尾 =====
     // 先更新粒子寿命
