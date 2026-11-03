@@ -791,6 +791,9 @@ function tieShanKao() {
   if (kunCharging) return;
   kunCharging = true;
 
+  // 🏀 0. 同步背景点阵小人集体冲锋（新增效果）
+  if (typeof window.__kunSync === 'function') window.__kunSync();
+
   // 1. 屏幕震动
   document.body.classList.remove('shaking');
   void document.body.offsetWidth;
@@ -952,6 +955,9 @@ function update() {
         fireConfetti();
         basketballRain(18);
         sfx.celebrate();
+        // 🎉 下班彩蛋：自动来一场同步铁山靠 + 歌词
+        setTimeout(() => tieShanKao(), 400);
+        setTimeout(() => kunMarquee('只因你太美～ ' + p.name + ' 下班啦～ 鸡你太美～ 🏀🎤'), 1200);
       }
     }
   });
@@ -1120,7 +1126,69 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     tieShanKao();
   }
+  // 🎤 快捷键 J → 只因你太美歌词跑马灯
+  if ((e.key === 'j' || e.key === 'J') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const ae = document.activeElement;
+    if (ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) return;
+    e.preventDefault();
+    kunMarquee();
+  }
 });
+
+// ====== 🆕 歌词跑马灯 ======
+function kunMarquee(customText) {
+  const TEXT_POOL = [
+    '只因你太美～ baby 只因你太美～ 🎤🏀',
+    '鸡你太美！鸡你太美！！！💜',
+    '🎤 迎面走来的你让我如此蠢蠢欲动 🐔',
+    '🎵 练习时长两年半，喜欢唱、跳、rap、篮球 🏀',
+    '你是我的小呀小苹果～ 🎶（串台了）',
+    '铁山靠！！！💥 鸡你太美！！！'
+  ];
+  const text = customText || TEXT_POOL[Math.floor(Math.random() * TEXT_POOL.length)];
+
+  // 如果已经有一个在跑，先移除
+  document.querySelectorAll('.kun-marquee').forEach(el => el.remove());
+
+  const el = document.createElement('div');
+  el.className = 'kun-marquee';
+  el.textContent = text;
+  document.body.appendChild(el);
+  sfx.bounce();
+
+  // 3.2 秒后开始跑出屏幕左侧，整体约 6 秒结束
+  setTimeout(() => {
+    el.style.transition = 'transform 2.6s linear, opacity 0.5s';
+    el.style.transform = `translateX(-${el.scrollWidth + window.innerWidth}px)`;
+    el.style.opacity = '0';
+  }, 300);
+
+  setTimeout(() => el.remove(), 6500);
+}
+// 跑马灯样式（动态插入）
+(function injectMarqueeCSS() {
+  const s = document.createElement('style');
+  s.textContent = `
+.kun-marquee {
+  position: fixed; top: 38%; left: 0;
+  z-index: 1600;
+  font-size: clamp(32px, 6vw, 72px);
+  font-weight: 900; white-space: nowrap;
+  background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3, #54a0ff);
+  background-size: 300% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 40px rgba(254,202,87,0.5);
+  transform: translateX(100vw);
+  animation: marqueeRainbow 1.2s linear infinite;
+  pointer-events: none; letter-spacing: 2px;
+}
+@keyframes marqueeRainbow {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}`;
+  document.head.appendChild(s);
+})();
 
 document.getElementById('kunRatio').addEventListener('input', e => {
   const v = parseFloat(e.target.value);
@@ -1449,6 +1517,48 @@ refreshSoundBtn();
   const FIGURE_COUNT = 5;
   let figures = [];
 
+  // 篮球拖尾粒子
+  const MAX_TRAILS = 28;
+  let trails = [];
+  let lastMouseAt = 0;
+  const MOUSE_THROTTLE = 42;   // 毫秒，控制拖尾密度
+
+  function onMouseMove(e) {
+    const now = performance.now();
+    if (now - lastMouseAt < MOUSE_THROTTLE) return;
+    lastMouseAt = now;
+    // 往鼠标位置加一个拖尾粒子
+    trails.push({
+      x: e.clientX + (Math.random() - 0.5) * 6,
+      y: e.clientY + (Math.random() - 0.5) * 6,
+      t: 0,
+      life: 520 + Math.random() * 200,  // 寿命 ms
+      size: 7 + Math.random() * 4
+    });
+    if (trails.length > MAX_TRAILS) trails.shift();
+  }
+  window.addEventListener('mousemove', onMouseMove, { passive: true });
+  // 触屏也支持
+  window.addEventListener('touchmove', (e) => {
+    if (e.touches[0]) onMouseMove({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
+  }, { passive: true });
+
+  // ===== 铁山靠同步：让所有背景小人集体冲锋！ =====
+  let syncTimer = 0;
+  let syncEndAt = 0;
+  window.__kunSync = function(mode) {
+    const now = performance.now();
+    syncEndAt = now + 1400;  // 1.4 秒
+    // 全部跳到"冲向左侧"帧
+    figures.forEach(f => {
+      f.frameIndex = 2;
+      f.frameTimer = 0;
+      f.frameDuration = 55;       // 加速帧切换
+      f.speed *= 3.2;             // 速度飙升
+      f.dotAlpha = Math.min(1, f.dotAlpha + 0.25);  // 更亮
+    });
+  };
+
   function resize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -1502,6 +1612,45 @@ refreshSoundBtn();
     lastTime = now;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // ===== 更新 & 绘制篮球拖尾 =====
+    // 先更新粒子寿命
+    trails = trails.filter(tr => {
+      tr.t += dt;
+      return tr.t < tr.life;
+    });
+    // 再绘制（让较新的粒子在上方）
+    for (let i = 0; i < trails.length; i++) {
+      const tr = trails[i];
+      const lifeRatio = tr.t / tr.life;  // 0 → 1
+      const alpha = (1 - lifeRatio) * 0.55;   // 从不透明渐隐
+      const r = tr.size * (1 - lifeRatio * 0.5);  // 逐渐缩小
+
+      // 篮球主体（橙色圆）
+      ctx.fillStyle = '#ff7f2a';
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(tr.x, tr.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      // 缝线（深色弧线）—— 简化成一道暗纹
+      ctx.strokeStyle = '#2d2d2d';
+      ctx.lineWidth = Math.max(0.6, r * 0.12);
+      ctx.beginPath();
+      ctx.arc(tr.x, tr.y, r * 0.7, 0.25 * Math.PI, 0.75 * Math.PI);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // ===== 铁山靠同步结束后恢复 =====
+    if (syncEndAt && now > syncEndAt) {
+      syncEndAt = 0;
+      figures.forEach((f, i) => {
+        f.frameDuration = 90 + Math.random() * 40;
+        f.speed = 0.35 + Math.random() * 0.45;
+        f.dotAlpha = 0.35 + Math.random() * 0.35;
+        f.frameIndex = Math.floor(Math.random() * FRAMES.length);
+      });
+    }
 
     // 画每个人物
     for (let i = 0; i < figures.length; i++) {
