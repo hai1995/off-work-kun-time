@@ -2281,18 +2281,18 @@ setInterval(update, 1000);
     { key: 'K', label: '铁山靠', icon: '🏀', cls: 'twin',   action: () => { tieShanKao(); } },
     { key: 'L', label: '天降雷电', icon: '⚡', cls: '',     action: () => {
       const W = window.innerWidth, H = window.innerHeight;
-      flashOverlay();
-      setTimeout(() => {
-        if (window.__kunShockwave) {
-          window.__kunShockwave(W * 0.2, H * 0.35);
-          window.__kunShockwave(W * 0.5, H * 0.5);
-          window.__kunShockwave(W * 0.8, H * 0.35);
-        }
-        if (window.__kunSync) window.__kunSync();
-      }, 150);
-      screenShake(22, 700);
+      const flash = document.getElementById('flashOverlay');
+      flash.classList.remove('active'); void flash.offsetWidth;
+      flash.classList.add('active');
+      document.body.classList.remove('shaking'); void document.body.offsetWidth;
+      document.body.classList.add('shaking');
       sfx.thunder();
-      basketballRain(10);
+      // 三发冲击波从不同点交错爆出（与原 K/L 键保持一致）
+      setTimeout(() => window.__kunShockwave && window.__kunShockwave(W * 0.25, H * 0.35), 120);
+      setTimeout(() => window.__kunShockwave && window.__kunShockwave(W * 0.75, H * 0.55), 320);
+      setTimeout(() => window.__kunShockwave && window.__kunShockwave(W * 0.5, H * 0.2), 520);
+      setTimeout(() => document.body.classList.remove('shaking'), 600);
+      basketballRain(14);
     }},
     { key: 'J', label: '只因你太美', icon: '🎤', cls: '',   action: () => { kunMarquee(); } },
     { key: 'C', label: 'CRT故障风', icon: '📺', cls: '',   action: () => { document.body.classList.toggle('crt'); sfx.bounce(); } },
