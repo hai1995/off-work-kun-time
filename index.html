@@ -674,7 +674,10 @@
     font-size: 10.5px;
     color: rgba(255,255,255,0.4);
     text-align: center;
+    line-height: 1.5;
   }
+  .egg-footer b { color: #ff9ff3; }
+  .egg-footer .sep { margin: 0 6px; opacity: 0.35; }
 
   /* 折叠后只剩一个小按钮 */
   .egg-panel.folded {
@@ -771,13 +774,14 @@
     </div>
     <div class="egg-panel-body" id="eggPanelBody">
       <div class="egg-hint-bubble" id="eggHint">
-        👋 试试按 <b>K</b> 键或者点下面的按钮！
+        👋 试试按 <b>K</b> 键 或点按钮，挂机 15s 页面会自己搞事！
       </div>
       <div class="egg-grid" id="eggGrid">
         <!-- JS 渲染 -->
       </div>
       <div class="egg-footer">
-        💡 挂机 20-120 秒，页面会自己搞事情
+        💡 挂机 15-35s 自己搞事<br>
+        <b>点标题</b>梗｜<b>点卡片</b>鸡叫｜<b>连点3次</b>爆炸
       </div>
     </div>
   </div>
@@ -1798,14 +1802,33 @@ document.getElementById('kunBtn').addEventListener('click', tieShanKao);
 
 // 标题连点 5 次 → 铁山靠
 let titleClicks = 0, titleTimer = null;
+// ====== 标题点击彩蛋（每次点击都有反应） ======
+const TITLE_LINES = [
+  '只因你太美～ baby 只因你太美～',
+  '练习时长两年半，喜欢唱、跳、rap、篮球 🏀',
+  '鸡你太美！鸡你太美！！！',
+  '迎面走来的你让我如此蠢蠢欲动 🐔',
+  '⚡ 铁山靠！！！',
+  '🎤 接下来～ 我要开始跳了～',
+  '坤时已到，下班冲！',
+  '你离下班还有一坤，但离快乐很近！',
+  '篮球，是一种运动！🏀'
+];
 document.getElementById('mainTitle').addEventListener('click', () => {
+  // 先做普通小气泡
+  const msg = TITLE_LINES[Math.floor(Math.random() * TITLE_LINES.length)];
+  toast('🎤 ' + msg);
+  sfx.bounce();
+
   titleClicks++;
   clearTimeout(titleTimer);
   titleTimer = setTimeout(() => { titleClicks = 0; }, 900);
   if (titleClicks >= 5) {
     titleClicks = 0;
     tieShanKao();
-    toast('🎤 只因你太美～');
+    setTimeout(() => sfx.chicken(), 200);
+    setTimeout(() => sfx.ggtmg(), 600);
+    kunMarquee('只因你太美～鸡你太美～！（标题连点五下触发！）');
   }
 });
 
@@ -2488,13 +2511,11 @@ setInterval(update, 1000);
     '🔥 注意背景，小人疯了'
   ];
   function randNext() {
-    // 45 ~ 120 秒触发一次
-    return 45000 + Math.random() * 75000;
+    // 15 ~ 35 秒一次（更频繁）
+    return 15000 + Math.random() * 20000;
   }
   function triggerOne() {
-    // 60% 概率：背景小人集体冲锋 + 冲击波
-    // 25% 概率：篮球雨 + 一歌词
-    // 15% 概率：彩虹 F 效果
+    // 随机选一个大组合彩蛋（每次都有声有色）
     const r = Math.random();
     const msg = msgs[Math.floor(Math.random() * msgs.length)];
     const msgEl = document.getElementById('autoMsg');
@@ -2502,8 +2523,9 @@ setInterval(update, 1000);
     msgEl.classList.add('show');
     setTimeout(() => msgEl.classList.remove('show'), 3000);
 
-    if (r < 0.35) {
-      // 背景集体冲锋
+    if (r < 0.25) {
+      // 🏀 铁山靠小炮：集体冲锋 + 冲击波 + 音效 + 歌词
+      sfx.ggtmg();
       if (window.__kunSync) window.__kunSync();
       setTimeout(() => {
         if (window.__kunShockwave) {
@@ -2514,28 +2536,47 @@ setInterval(update, 1000);
         }
       }, 250);
       basketballRain(6 + Math.floor(Math.random() * 6));
-    } else if (r < 0.6) {
-      // 背景集体跳起 + 中央爆炸
+      setTimeout(() => kunMarquee('只因你太美～！（背景偷偷冲了！）'), 500);
+    } else if (r < 0.5) {
+      // 🐔 鸡你太美：集体跳起 + 鸡叫 + 旋律 + 爆炸 + 篮球雨
+      sfx.chicken();
+      setTimeout(() => sfx.ggtmg(), 350);
       if (window.__kunSync) window.__kunSync('jump');
       setTimeout(() => boomAt(
         window.innerWidth * (0.2 + Math.random() * 0.6),
         window.innerHeight * (0.3 + Math.random() * 0.5)
       ), 300);
-      basketballRain(8);
-    } else if (r < 0.85) {
-      basketballRain(14);
-      setTimeout(() => kunMarquee(), 400);
-    } else {
+      basketballRain(10);
+      setTimeout(() => kunMarquee('🐔 鸡你太美～（背景鸡叫了！）'), 600);
+    } else if (r < 0.75) {
+      // 🌈 彩虹+篮球雨+歌词
+      sfx.bounce();
+      basketballRain(16);
       const rb = document.getElementById('rainbowOverlay');
       rb.classList.remove('active'); void rb.offsetWidth;
       rb.classList.add('active');
       setTimeout(() => rb.classList.remove('active'), 2200);
+      setTimeout(() => kunMarquee(), 400);
+    } else {
+      // ⚡ 小雷电：闪白 + 单冲击波 + 震音
+      sfx.thunder();
+      const flash = document.getElementById('flashOverlay');
+      flash.classList.remove('active'); void flash.offsetWidth;
+      flash.classList.add('active');
+      setTimeout(() => {
+        if (window.__kunShockwave) {
+          const W = window.innerWidth, H = window.innerHeight;
+          window.__kunShockwave(W * 0.35, H * 0.4);
+          window.__kunShockwave(W * 0.65, H * 0.5);
+        }
+      }, 160);
+      basketballRain(8);
     }
     setTimeout(runNext, 2500 + Math.random() * 5000);
   }
   function runNext() { setTimeout(triggerOne, randNext()); }
-  // 第一次启动延迟 20s，给用户一点缓冲
-  setTimeout(runNext, 20000);
+  // 第一次启动延迟 8s（给个快速首次彩蛋）
+  setTimeout(runNext, 8000);
 })();
 </script>
 </body>
