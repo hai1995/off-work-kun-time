@@ -2591,20 +2591,36 @@ refreshSoundBtn();
     }
   }
 
+  const GAG_LINES = [
+    '只因你太美～',
+    '🐔 鸡你太美！',
+    '唱、跳、rap、篮球',
+    '迎面走来的你～',
+    '练习时长两年半',
+    '⚡ 铁山靠！',
+    '🏀 篮球是种运动',
+    '坤坤来了快跑',
+    '下班冲啊！',
+    '你离下班还有一坤',
+    'baby 只因你太美',
+    '🎤 接下来我要跳了'
+  ];
+
   function makeFigure(index) {
     const hueShift = Math.random();
     return {
-      // 屏幕外起始 x，从右往左走
       x: canvas.width + Math.random() * 400 + index * 250,
-      y: canvas.height * (0.3 + Math.random() * 0.55),  // 垂直位置随机
-      speed: 0.35 + Math.random() * 0.45,                // 横向速度
+      y: canvas.height * (0.3 + Math.random() * 0.55),
+      speed: 0.35 + Math.random() * 0.45,
       frameIndex: Math.floor(Math.random() * FRAMES.length),
       frameTimer: Math.random() * 1000,
-      frameDuration: 90 + Math.random() * 40,             // 每帧持续毫秒
+      frameDuration: 90 + Math.random() * 40,
       color: palette[index % palette.length],
       dotAlpha: 0.35 + Math.random() * 0.35,
-      scale: 0.9 + Math.random() * 0.5,                   // 整体缩放
-      bobOffset: Math.random() * Math.PI * 2              // 上下浮动相位
+      scale: 0.9 + Math.random() * 0.5,
+      bobOffset: Math.random() * Math.PI * 2,
+      // 头顶梗气泡
+      bubble: null   // { text, t, life, color }
     };
   }
 
@@ -2650,18 +2666,29 @@ refreshSoundBtn();
         // 3) 画到主 canvas 作为点阵网格
         const stepX = canvas.width / pixelCols;
         const stepY = canvas.height / pixelRows;
-        ctx.fillStyle = '#ffffff';
         for (let r = 0; r < pixelRows; r++) {
           for (let c = 0; c < pixelCols; c++) {
             const i = (r * pixelCols + c) * 4;
             const lum = (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114);
-            // 黑白色：亮的点 = 圆点（视频里亮 → 屏幕上有一个白圆点）
             if (lum > threshold) {
               const cx = c * stepX + stepX * 0.5;
               const cy = r * stepY + stepY * 0.5;
               const size = Math.min(stepX, stepY) * 0.55;
               ctx.beginPath();
               ctx.arc(cx, cy, size, 0, Math.PI * 2);
+              if (pixelColorMode) {
+                // 🎨 彩色模式：保持视频原色调，加轻微饱和
+                const rv = data[i], gv = data[i+1], bv = data[i+2];
+                // 轻微提升饱和
+                const avg = (rv + gv + bv) / 3;
+                const satBoost = 1.3;
+                const rr = Math.min(255, Math.max(0, avg + (rv - avg) * satBoost));
+                const gg = Math.min(255, Math.max(0, avg + (gv - avg) * satBoost));
+                const bb = Math.min(255, Math.max(0, avg + (bv - avg) * satBoost));
+                ctx.fillStyle = `rgb(${rr|0},${gg|0},${bb|0})`;
+              } else {
+                ctx.fillStyle = '#ffffff';
+              }
               ctx.fill();
             }
           }
@@ -2853,6 +2880,40 @@ refreshSoundBtn();
         ctx.fill();
       }
 
+      // ===== 🐔 头顶梗气泡 =====
+      if (f.bubble) {
+        f.bubble.t += dt;
+        const lifeR = f.bubble.t / f.bubble.life;
+        if (lifeR >= 1) { f.bubble = null; }
+        else {
+          const headY = offsetY - 6;   // 小人头顶往上一点
+          const bx = offsetX + figureWidth / 2;
+          const by = headY - 20 - lifeR * 8;   // 气泡上浮 8px
+          // 淡入 → 保持 → 淡出
+          const a = lifeR < 0.2 ? lifeR * 5 : lifeR > 0.8 ? (1 - lifeR) * 5 : 1;
+          ctx.globalAlpha = a * 0.95;
+          ctx.font = `bold ${Math.max(11, 14 * f.scale)}px "PingFang SC", "Microsoft YaHei", sans-serif`;
+          ctx.textAlign = 'center';
+          const txt = f.bubble.text;
+          const w = ctx.measureText(txt).width;
+          const pad = 6, h = 18;
+          // 气泡圆角矩形
+          ctx.fillStyle = f.bubble.color || 'rgba(255,255,255,0.92)';
+          roundRect(ctx, bx - w/2 - pad, by - h/2, w + pad*2, h, 9);
+          ctx.fill();
+          // 小尾巴
+          ctx.beginPath();
+          ctx.moveTo(bx - 5, by + h/2 - 1);
+          ctx.lineTo(bx, by + h/2 + 5);
+          ctx.lineTo(bx + 5, by + h/2 - 1);
+          ctx.fill();
+          // 文字
+          ctx.fillStyle = '#222';
+          ctx.fillText(txt, bx, by + 4);
+          ctx.globalAlpha = 1;
+        }
+      }
+
       ctx.globalAlpha = 1;
     }
 
@@ -2861,6 +2922,159 @@ refreshSoundBtn();
 
   initFigures();
   requestAnimationFrame(animate);
+
+  // ===== 辅助函数 =====
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y,     x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x,     y + h, r);
+    ctx.arcTo(x,     y + h, x,     y,     r);
+    ctx.arcTo(x,     y,     x + w, y,     r);
+    ctx.closePath();
+  }
+
+  // ===== 🐔 随机给背景小人头顶冒梗气泡 =====
+  function randomBubbleOnFigure() {
+    const candidates = figures.filter(f => !f.bubble && f.x > 0 && f.x < canvas.width + 100);
+    if (candidates.length === 0) return;
+    const f = candidates[Math.floor(Math.random() * candidates.length)];
+    f.bubble = {
+      text: GAG_LINES[Math.floor(Math.random() * GAG_LINES.length)],
+      t: 0,
+      life: 2000 + Math.random() * 1500,
+      color: ['rgba(255,255,255,0.95)','rgba(254,202,87,0.95)','rgba(255,159,243,0.95)','rgba(72,219,251,0.95)'][Math.floor(Math.random()*4)]
+    };
+  }
+  setInterval(randomBubbleOnFigure, 2800);
+
+  // ===== 🌈 R 键 — 彩虹下雨（彩色篮球 + 头顶都出彩虹） =====
+  window.addEventListener('keydown', (e) => {
+    if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const ae = document.activeElement;
+      if (ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) return;
+      e.preventDefault();
+      rainbowShower();
+    }
+    // ===== 💥 E 键 — 全场终极特效爆发 =====
+    if ((e.key === 'e' || e.key === 'E') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const ae = document.activeElement;
+      if (ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) return;
+      e.preventDefault();
+      ultimateExplosion();
+    }
+  });
+
+  // 彩虹下雨（彩色篮球从天上掉）
+  function rainbowShower() {
+    sfx.bounce();
+    const W = window.innerWidth, H = window.innerHeight;
+    const colors = ['#ff6b6b','#feca57','#48dbfb','#ff9ff3','#1dd1a1','#54a0ff'];
+    // 爆 4 波彩色篮球
+    for (let w = 0; w < 4; w++) {
+      setTimeout(() => {
+        for (let i = 0; i < 14; i++) {
+          const el = document.createElement('div');
+          el.className = 'basketball falling';
+          const x = Math.random() * W;
+          const c = colors[Math.floor(Math.random() * colors.length)];
+          const size = 22 + Math.random() * 22;
+          const dur = 1.8 + Math.random() * 1.4;
+          el.style.cssText = `
+            left:${x}px; top:-${size+10}px;
+            width:${size}px; height:${size}px;
+            animation: fall ${dur}s linear forwards;
+            background: radial-gradient(circle at 30% 30%, ${c}, ${c}cc);
+            border-radius: 50%;
+            box-shadow: 0 0 18px ${c}88;
+          `;
+          document.getElementById('basketballs').appendChild(el);
+          setTimeout(() => el.remove(), (dur + 0.3) * 1000);
+        }
+      }, w * 180);
+    }
+    // 背景彩虹覆盖
+    const rb = document.getElementById('rainbowOverlay');
+    rb.classList.remove('active'); void rb.offsetWidth;
+    rb.classList.add('active');
+    setTimeout(() => rb.classList.remove('active'), 2200);
+    // 每个小人头顶都冒彩虹气泡
+    figures.forEach(f => {
+      f.bubble = { text: '🌈 只因你太美🌈', t: 0, life: 2500, color: 'rgba(254,202,87,0.95)' };
+    });
+    toast('🌈 彩虹下雨！');
+  }
+  window.__rainbowShower = rainbowShower;
+
+  // 💥 终极爆发（所有彩蛋一起上！）
+  function ultimateExplosion() {
+    toast('💥💥💥 全场终极爆发！');
+    // 闪白 + 震屏
+    sfx.thunder();
+    const flash = document.getElementById('flashOverlay');
+    flash.classList.remove('active'); void flash.offsetWidth;
+    flash.classList.add('active');
+    document.body.classList.add('shaking');
+    setTimeout(() => document.body.classList.remove('shaking'), 700);
+    // 只因你太美旋律 + 鸡叫
+    sfx.ggtmg();
+    setTimeout(() => sfx.chicken(), 800);
+    setTimeout(() => sfx.ggtmg(), 1400);
+    // 背景小人 → 跳起帧 + 冲击波 × 3
+    if (window.__kunSync) window.__kunSync('jump');
+    const W = window.innerWidth, H = window.innerHeight;
+    if (window.__kunShockwave) {
+      window.__kunShockwave(W * 0.2, H * 0.3);
+      setTimeout(() => window.__kunShockwave(W * 0.5, H * 0.6), 180);
+      setTimeout(() => window.__kunShockwave(W * 0.8, H * 0.35), 360);
+    }
+    // 彩虹覆盖 + 彩虹下雨 + 普通篮球雨
+    const rb = document.getElementById('rainbowOverlay');
+    rb.classList.remove('active'); void rb.offsetWidth;
+    rb.classList.add('active');
+    setTimeout(() => rb.classList.remove('active'), 2400);
+    rainbowShower();
+    basketballRain(25);
+    // 坤坤跳舞（如果还没跳）
+    if (!window._kunDancing && window.__kunDance) {
+      window._kunDancing = true;
+      window.__kunDance(true, { frameDur: 90, scale: 1.1, tint: '#feca57' });
+      setTimeout(() => { window.__kunDance && window.__kunDance(false); window._kunDancing = false; }, 5000);
+    }
+    // 歌词 + 背景小人全员梗气泡
+    kunMarquee('💥 只因你太美～鸡你太美～全场终极爆发！！！');
+    figures.forEach((f, i) => {
+      setTimeout(() => {
+        f.bubble = { text: GAG_LINES[i % GAG_LINES.length], t: 0, life: 3000, color: 'rgba(255,255,255,0.95)' };
+      }, i * 200);
+    });
+  }
+  window.__ultimateExplosion = ultimateExplosion;
+
+  // ===== 📱 手机摇一摇 → 触发铁山靠 =====
+  (function bindShake() {
+    if (!window.DeviceMotionEvent) return;
+    let lastShake = 0;
+    window.addEventListener('devicemotion', (e) => {
+      const acc = e.accelerationIncludingGravity;
+      if (!acc) return;
+      const mag = Math.sqrt((acc.x||0)**2 + (acc.y||0)**2 + (acc.z||0)**2);
+      if (mag > 22 && performance.now() - lastShake > 800) {
+        lastShake = performance.now();
+        toast('📱 摇一摇！触发铁山靠！');
+        tieShanKao();
+      }
+    });
+  })();
+
+  // ===== 🎨 点阵视频：黑白 ↔ 彩色 切换 =====
+  let pixelColorMode = false;
+  window.__pixelColorToggle = function() {
+    pixelColorMode = !pixelColorMode;
+    return pixelColorMode;
+  };
+  // patch 一下 pixelator 让它支持彩色
+  // （在上面的 animate 绘制里动态判断 pixelColorMode）
 
   // 窗口 resize 时重新排布
   window.addEventListener('resize', () => {
@@ -2983,6 +3197,12 @@ setInterval(update, 1000);
           window._kunDancing = false;
         }
       }, 7000);
+    }},
+    { key: 'R', label: '彩虹下雨', icon: '🌈', cls: 'rainbow', action: () => {
+      if (window.__rainbowShower) window.__rainbowShower();
+    }},
+    { key: 'E', label: '全场爆发', icon: '💥', cls: 'twin', action: () => {
+      if (window.__ultimateExplosion) window.__ultimateExplosion();
     }},
     { key: '3连', label: '鼠标爆炸', icon: '💥', cls: '',  action: () => { boomAt(window.innerWidth / 2, window.innerHeight / 2); } },
   ];
