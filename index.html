@@ -776,10 +776,12 @@
 
 <!-- 🎬 视频源：被 pixelator 实时转换成点阵的那个视频 -->
 <!-- 用户点工具栏"点阵视频"或 D 键跳舞时会出现真实画面 -->
-<video id="srcVideo" hidden playsinline preload="metadata"
+<video id="srcVideo" hidden playsinline preload="auto"
        crossorigin="anonymous"
        poster=""
-       aria-label="视频源（用于点阵化）">
+       loop
+       src="./assets/kun_tieshankao.mp4"
+       aria-label="坤坤铁山靠（用于点阵化背景）">
 </video>
 <!-- Hidden sampling canvas -->
 <canvas id="pixelSampler" hidden></canvas>
@@ -2482,6 +2484,33 @@ refreshSoundBtn();
       btn.classList.add('active');
       btn.textContent = '🎬 点阵ON';
     };
+
+    // ===== 🚀 默认自动：加载坤坤铁山靠 mp4 → 自动开点阵模式 =====
+    // 必须 muted 才能 autoplay（浏览器策略）
+    srcVideo.muted = true;
+    srcVideo.addEventListener('canplay', () => {
+      srcVideo.play().then(() => {
+        // 自动开启点阵模式
+        pixelMode = true;
+        btn.classList.add('active');
+        btn.textContent = '🎬 铁山靠ON';
+        // 初次加载给个小提示
+        if (!window._pixelAutoShown) {
+          window._pixelAutoShown = true;
+          setTimeout(() => toast('🎬 默认已加载：坤坤铁山靠（点阵背景）'), 600);
+        }
+      }).catch(err => {
+        console.warn('自动播放被拦截，等用户首次点击', err);
+      });
+    }, { once: true });
+    // 如果 canplay 已经触发过了（preload=auto），手动 try
+    if (srcVideo.readyState >= 3) {
+      srcVideo.play().then(() => {
+        pixelMode = true;
+        btn.classList.add('active');
+        btn.textContent = '🎬 铁山靠ON';
+      }).catch(()=>{});
+    }
   })();
   let figures = [];
 
