@@ -333,6 +333,74 @@
     animation: videoBtnPulse 1.2s ease-in-out infinite;
   }
 
+  /* ===== 🎛️ 点阵参数菜单 ===== */
+  .pixel-gear {
+    position: fixed;
+    bottom: 18px;
+    right: 18px;
+    z-index: 1490;
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    border: 1px solid rgba(84,160,255,0.6);
+    background: rgba(20,24,40,0.82);
+    backdrop-filter: blur(10px);
+    color: #fff; font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    transition: transform 0.25s;
+  }
+  .pixel-gear:hover { transform: rotate(60deg) scale(1.1); }
+  .pixel-menu {
+    position: fixed;
+    bottom: 74px; right: 18px;
+    z-index: 1490;
+    width: 280px;
+    background: rgba(18,22,38,0.94);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(84,160,255,0.45);
+    border-radius: 14px;
+    padding: 12px 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+    display: none;
+    animation: pixelMenuIn 0.22s ease-out;
+  }
+  .pixel-menu.open { display: block; }
+  @keyframes pixelMenuIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .pixel-menu-head {
+    display: flex; justify-content: space-between; align-items: center;
+    color: #fff; font-size: 13px; font-weight: 600; margin-bottom: 10px;
+    padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .pixel-menu-head .close { cursor: pointer; opacity: 0.6; font-size: 18px; }
+  .pixel-menu-head .close:hover { opacity: 1; }
+  .pixel-menu-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin: 8px 0; font-size: 12px; color: #dfe6ee; gap: 8px;
+  }
+  .pixel-menu-row label { opacity: 0.85; }
+  .pixel-menu-row label b { color: #feca57; font-weight: 700; }
+  .pm-btn {
+    padding: 3px 10px; font-size: 11px;
+    border-radius: 8px; border: 1px solid rgba(84,160,255,0.5);
+    background: rgba(84,160,255,0.15); color: #fff;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .pm-btn.off {
+    border-color: rgba(255,107,107,0.5);
+    background: rgba(255,107,107,0.18);
+  }
+  .pixel-menu-row input[type=range] {
+    flex: 1; accent-color: #feca57;
+  }
+  .pixel-menu-row select {
+    padding: 3px 8px; font-size: 11px;
+    border-radius: 6px; border: 1px solid rgba(84,160,255,0.4);
+    background: rgba(20,24,40,0.8); color: #fff;
+  }
+
   /* ===== 设置弹窗 ===== */
   .modal-mask {
     position: fixed; inset: 0;
@@ -811,6 +879,46 @@
   <!-- 文件选择器（隐藏） -->
   <input type="file" id="pixelVideoInput" accept="video/*" hidden>
 
+  <!-- 🎛️ 可视化参数菜单（右下角小齿轮） -->
+  <button class="pixel-gear" id="pixelGear" title="点阵参数">⚙️</button>
+  <div class="pixel-menu" id="pixelMenu">
+    <div class="pixel-menu-head">
+      <span>🎛️ 点阵参数</span>
+      <span class="close" id="pixelMenuClose">×</span>
+    </div>
+    <div class="pixel-menu-row">
+      <label>反相 (白底黑点源视频)</label>
+      <button class="pm-btn" data-toggle="invert">ON</button>
+    </div>
+    <div class="pixel-menu-row">
+      <label>黑白 ↔ 彩色</label>
+      <button class="pm-btn" data-toggle="color">黑白</button>
+    </div>
+    <div class="pixel-menu-row">
+      <label>📺 CRT 扫描线</label>
+      <button class="pm-btn" data-toggle="crt">ON</button>
+    </div>
+    <div class="pixel-menu-row">
+      <label>🎮 电子抖动</label>
+      <button class="pm-btn" data-toggle="jitter">ON</button>
+    </div>
+    <div class="pixel-menu-row">
+      <label>阈值 <b id="thrLabel">自动</b></label>
+      <input type="range" id="thrSlider" min="20" max="240" value="140" step="5">
+    </div>
+    <div class="pixel-menu-row">
+      <label>点阵密度 <b id="densLabel">自动</b></label>
+      <select id="densSelect">
+        <option value="auto">自动（随屏幕）</option>
+        <option value="50">48×27 手机</option>
+        <option value="64">64×36 平板</option>
+        <option value="88">88×50 桌面</option>
+        <option value="112">112×63 大屏</option>
+        <option value="160">160×90 极密</option>
+      </select>
+    </div>
+  </div>
+
   <!-- 🎮 彩蛋快捷键面板（固定悬浮，可折叠） -->
   <div class="egg-panel" id="eggPanel">
     <div class="egg-panel-head" id="eggPanelHead">
@@ -1110,6 +1218,10 @@ const sfx = {
   chicken() {
     tone({ freq: 1200, dur: 0.14, type: 'sawtooth', vol: 0.045, slideTo: 700 });
     tone({ freq: 1400, dur: 0.14, type: 'sawtooth', vol: 0.045, slideTo: 650, delay: 0.28 });
+  },
+  // 🔘 UI 微小点击声
+  click() {
+    tone({ freq: 1800, dur: 0.05, type: 'sine', vol: 0.025, slideTo: 1200 });
   }
 };
 
@@ -2424,12 +2536,16 @@ refreshSoundBtn();
   const sampler = document.getElementById('pixelSampler');
   const samplerCtx = sampler.getContext('2d', { willReadFrequently: true });
   let pixelMode = false;
-  let pixelInvert = true;   // ⭐ 默认 true：源视频通常是"白底黑点"，屏幕要反相显示（黑底画黑点/彩色点）
-  let pixelCRT = true;      // CRT 扫描线效果
-  let pixelJitter = true;   // 轻微抖动（电子感）
-  let threshold = -140;     // 负值 = 自动自适应（取中值 + 偏移），正值 = 固定阈值
-  let pixelCols = 0;        // 0 = 自动根据屏幕密度算
+  let pixelInvert = true;
+  let pixelCRT = true;
+  let pixelJitter = true;
+  let threshold = -140;
+  let pixelCols = 0;
   let pixelRows = 0;
+  // ⚡ 性能：阈值缓存 + EMA 平滑
+  let _pixelThr = 140;       // 当前生效阈值
+  let _pixelThrFrame = 0;    // 上一次重算阈值的帧号
+  let _frameCounter = 0;
 
   // 根据窗口尺寸自动算采样网格
   function autoPixelGrid() {
@@ -2691,6 +2807,19 @@ refreshSoundBtn();
     // ===== 🎬 视频点阵化绘制（最底层） =====
     if (pixelMode && srcVideo && srcVideo.videoWidth) {
       try {
+        // 视频帧联动：检测到铁山靠 D 帧区间 → canvas 层背景小人同步 + 音效
+        const vTime = srcVideo.currentTime;
+        const vDur = srcVideo.duration || 1;
+        const seg = (vTime % vDur) / vDur;   // 0→1 循环归一化
+        const inDance = seg > 0.52 && seg < 0.95;
+        if (inDance && !window._lastSyncedDance) {
+          window._lastSyncedDance = true;
+          if (window.__kunSync) window.__kunSync('jump');
+          sfx.ggtmg();
+          setTimeout(() => sfx.chicken(), 600);
+        }
+        if (!inDance) window._lastSyncedDance = false;
+
         // 1) 采样：保持 contain 比例，黑底填充（视频外面是黑 → 保证亮度区分度）
         sampler.width = pixelCols;
         sampler.height = pixelRows;
@@ -2706,20 +2835,26 @@ refreshSoundBtn();
         const data = img.data;
 
         // 2) 自适应阈值（Otsu 简化版：用亮度中位数 + 偏移）
-        let effectiveThr = threshold;
-        if (threshold < 0) {
-          // 收集所有亮度值 → 取中位数
-          const lums = new Uint8Array(pixelCols * pixelRows);
-          let idx = 0;
-          for (let i = 0; i < data.length; i += 4) {
-            lums[idx++] = (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114) | 0;
-          }
-          lums.sort();
-          const median = lums[(lums.length / 2) | 0];
-          // pixelInvert=true（白底黑点源视频）→ 阈值往高调；pixelInvert=false（普通视频）→ 用中位数
-          effectiveThr = pixelInvert ? median + 30 : median;
-        } else {
+        // ⚡ 性能优化：每 3 帧才真正排序一次（跳过 2/3 CPU），用 EMA 平滑过渡
+        let effectiveThr;
+        if (threshold > 0) {
           effectiveThr = threshold;
+        } else {
+          _frameCounter++;
+          if (_frameCounter - _pixelThrFrame >= 3) {
+            _pixelThrFrame = _frameCounter;
+            const lums = new Uint8Array(pixelCols * pixelRows);
+            let idx = 0;
+            for (let i = 0; i < data.length; i += 4) {
+              lums[idx++] = (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114) | 0;
+            }
+            lums.sort();
+            const median = lums[(lums.length / 2) | 0];
+            const raw = pixelInvert ? median + 30 : median;
+            // EMA：0.3 新值 + 0.7 旧值 → 避免阈值跳变导致点阵闪烁
+            _pixelThr = _pixelThr * 0.7 + raw * 0.3;
+          }
+          effectiveThr = _pixelThr;
         }
 
         // 3) 画点阵：抖动扫描 + 反色逻辑
@@ -3185,6 +3320,88 @@ refreshSoundBtn();
     toast(pixelCRT ? '📺 CRT 扫描线 ON' : '📺 CRT 扫描线 OFF');
     return pixelCRT;
   };
+  window.__pixelJitterToggle = function() {
+    pixelJitter = !pixelJitter;
+    toast(pixelJitter ? '🎮 电子抖动 ON' : '🎮 电子抖动 OFF');
+    return pixelJitter;
+  };
+
+  // ===== 🎛️ 右下角小齿轮：可视化参数菜单 =====
+  (function bindPixelMenu() {
+    const gear = document.getElementById('pixelGear');
+    const menu = document.getElementById('pixelMenu');
+    const close = document.getElementById('pixelMenuClose');
+    const thrLabel = document.getElementById('thrLabel');
+    const thrSlider = document.getElementById('thrSlider');
+    const densSelect = document.getElementById('densSelect');
+    if (!gear || !menu) return;
+
+    // 初始按钮状态
+    function syncBtnStates() {
+      document.querySelector('.pm-btn[data-toggle=invert]').textContent = pixelInvert ? 'ON' : 'OFF';
+      document.querySelector('.pm-btn[data-toggle=invert]').classList.toggle('off', !pixelInvert);
+      document.querySelector('.pm-btn[data-toggle=color]').textContent = pixelColorMode ? '彩色' : '黑白';
+      document.querySelector('.pm-btn[data-toggle=color]').classList.toggle('off', !pixelColorMode);
+      document.querySelector('.pm-btn[data-toggle=crt]').textContent = pixelCRT ? 'ON' : 'OFF';
+      document.querySelector('.pm-btn[data-toggle=crt]').classList.toggle('off', !pixelCRT);
+      document.querySelector('.pm-btn[data-toggle=jitter]').textContent = pixelJitter ? 'ON' : 'OFF';
+      document.querySelector('.pm-btn[data-toggle=jitter]').classList.toggle('off', !pixelJitter);
+    }
+    syncBtnStates();
+
+    gear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.toggle('open');
+      sfx.click ? sfx.click() : sfx.bounce();
+      syncBtnStates();
+      thrSlider.value = threshold > 0 ? threshold : 140;
+      thrLabel.textContent = threshold > 0 ? threshold : '自动';
+      densSelect.value = pixelCols === 0 ? 'auto' : String(pixelCols);
+    });
+    close.addEventListener('click', () => menu.classList.remove('open'));
+    document.addEventListener('click', (e) => {
+      if (!menu.contains(e.target) && !gear.contains(e.target)) menu.classList.remove('open');
+    });
+
+    // 四个开关按钮
+    menu.querySelectorAll('.pm-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const toggle = btn.dataset.toggle;
+        let newVal;
+        if (toggle === 'invert')   newVal = window.__pixelInvertToggle();
+        else if (toggle === 'color') newVal = window.__pixelColorToggle();
+        else if (toggle === 'crt') newVal = window.__pixelCRTToggle();
+        else if (toggle === 'jitter') newVal = window.__pixelJitterToggle();
+        sfx.bounce();
+        syncBtnStates();
+      });
+    });
+
+    // 阈值滑杆
+    thrSlider.addEventListener('input', () => {
+      threshold = +thrSlider.value;   // 手动固定
+      thrLabel.textContent = threshold;
+      _pixelThr = threshold;           // 立即生效，不等到下帧
+    });
+    thrSlider.addEventListener('dblclick', () => {
+      threshold = -140;               // 双击恢复自动
+      thrLabel.textContent = '自动';
+      toast('🔄 阈值恢复自动');
+    });
+
+    // 密度选择
+    densSelect.addEventListener('change', () => {
+      const v = densSelect.value;
+      if (v === 'auto') {
+        pixelCols = 0; pixelRows = 0;
+        autoPixelGrid();
+      } else {
+        pixelCols = +v;
+        pixelRows = Math.round(pixelCols * 9 / 16);   // 16:9 比例
+      }
+      toast(`📐 点阵密度: ${pixelCols}×${pixelRows}`);
+    });
+  })();
 
   // ===== ⌨️ V/I/X 快捷切换点阵视频各种效果 =====
   window.addEventListener('keydown', (e) => {
