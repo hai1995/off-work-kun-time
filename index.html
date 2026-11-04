@@ -2423,10 +2423,25 @@ refreshSoundBtn();
   const srcVideo = document.getElementById('srcVideo');
   const sampler = document.getElementById('pixelSampler');
   const samplerCtx = sampler.getContext('2d', { willReadFrequently: true });
-  let pixelMode = false;          // 是否显示视频点阵背景（覆盖原点阵小人）
-  let threshold = 140;            // 二值化阈值 0-255（越高越黑）
-  let pixelCols = 64;             // 横向网格数（越大越清晰）
-  let pixelRows = 36;
+  let pixelMode = false;
+  let pixelInvert = true;   // ⭐ 默认 true：源视频通常是"白底黑点"，屏幕要反相显示（黑底画黑点/彩色点）
+  let pixelCRT = true;      // CRT 扫描线效果
+  let pixelJitter = true;   // 轻微抖动（电子感）
+  let threshold = -140;     // 负值 = 自动自适应（取中值 + 偏移），正值 = 固定阈值
+  let pixelCols = 0;        // 0 = 自动根据屏幕密度算
+  let pixelRows = 0;
+
+  // 根据窗口尺寸自动算采样网格
+  function autoPixelGrid() {
+    const minSide = Math.min(window.innerWidth, window.innerHeight);
+    if (minSide >= 1200) { pixelCols = 112; pixelRows = 63; }   // 桌面大
+    else if (minSide >= 800) { pixelCols = 88; pixelRows = 50; }   // 桌面
+    else if (minSide >= 500) { pixelCols = 64; pixelRows = 36; }   // 平板
+    else                     { pixelCols = 48; pixelRows = 27; }   // 手机
+  }
+  autoPixelGrid();
+  window.addEventListener('resize', autoPixelGrid);
+
   window.__pixelMode = {
     get on() { return pixelMode; },
     toggle() {
@@ -2437,7 +2452,7 @@ refreshSoundBtn();
       } catch(e) {}
       return pixelMode;
     },
-    setThreshold(v) { threshold = Math.max(20, Math.min(240, v)); }
+    setThreshold(v) { threshold = v; }
   };
 
   // 工具栏按钮绑定
@@ -2675,59 +2690,116 @@ refreshSoundBtn();
 
     // ===== 🎬 视频点阵化绘制（最底层） =====
     if (pixelMode && srcVideo && srcVideo.videoWidth) {
-      // 1) 把当前帧画到小 sampler canvas
-      sampler.width = pixelCols;
-      sampler.height = pixelRows;
       try {
-        // 保持视频原比例，用 contain 绘制
+        // 1) 采样：保持 contain 比例，黑底填充（视频外面是黑 → 保证亮度区分度）
+        sampler.width = pixelCols;
+        sampler.height = pixelRows;
+        samplerCtx.fillStyle = '#000';
+        samplerCtx.fillRect(0, 0, pixelCols, pixelRows);
         const vw = srcVideo.videoWidth, vh = srcVideo.videoHeight;
-        const sr = pixelCols / pixelRows;
-        const vr = vw / vh;
+        const sr = pixelCols / pixelRows, vr = vw / vh;
         let sw = pixelCols, sh = pixelRows, sx = 0, sy = 0;
         if (vr > sr) { sh = pixelCols / vr; sy = (pixelRows - sh) / 2; }
         else         { sw = pixelRows * vr; sx = (pixelCols - sw) / 2; }
-        samplerCtx.fillStyle = '#000';
-        samplerCtx.fillRect(0, 0, pixelCols, pixelRows);
         samplerCtx.drawImage(srcVideo, sx, sy, sw, sh);
-        // 2) 取像素数据
         const img = samplerCtx.getImageData(0, 0, pixelCols, pixelRows);
         const data = img.data;
-        // 3) 画到主 canvas 作为点阵网格
+
+        // 2) 自适应阈值（Otsu 简化版：用亮度中位数 + 偏移）
+        let effectiveThr = threshold;
+        if (threshold < 0) {
+          // 收集所有亮度值 → 取中位数
+          const lums = new Uint8Array(pixelCols * pixelRows);
+          let idx = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            lums[idx++] = (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114) | 0;
+          }
+          lums.sort();
+          const median = lums[(lums.length / 2) | 0];
+          // pixelInvert=true（白底黑点源视频）→ 阈值往高调；pixelInvert=false（普通视频）→ 用中位数
+          effectiveThr = pixelInvert ? median + 30 : median;
+        } else {
+          effectiveThr = threshold;
+        }
+
+        // 3) 画点阵：抖动扫描 + 反色逻辑
         const stepX = canvas.width / pixelCols;
         const stepY = canvas.height / pixelRows;
-        for (let r = 0; r < pixelRows; r++) {
-          for (let c = 0; c < pixelCols; c++) {
-            const i = (r * pixelCols + c) * 4;
-            const lum = (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114);
-            if (lum > threshold) {
-              const cx = c * stepX + stepX * 0.5;
-              const cy = r * stepY + stepY * 0.5;
-              const size = Math.min(stepX, stepY) * 0.55;
-              ctx.beginPath();
-              ctx.arc(cx, cy, size, 0, Math.PI * 2);
-              if (pixelColorMode) {
-                // 🎨 彩色模式：保持视频原色调，加轻微饱和
+        const baseSize = Math.min(stepX, stepY) * 0.55;
+        const jx = pixelJitter ? (Math.random() - 0.5) * Math.max(1, stepX * 0.18) : 0;
+        const jy = pixelJitter ? (Math.random() - 0.5) * Math.max(1, stepY * 0.18) : 0;
+
+        if (pixelColorMode) {
+          // 彩色模式
+          if (pixelInvert) {
+            ctx.fillStyle = '#000000';
+            // 先铺一层底，让点阵的彩色点在上面发光
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+          }
+          for (let r = 0; r < pixelRows; r++) {
+            for (let c = 0; c < pixelCols; c++) {
+              const i = (r * pixelCols + c) * 4;
+              const lum = (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114);
+              // 反色：白底黑点源视频 → lum < effectiveThr 才画（黑点=像素角色）
+              const hit = pixelInvert ? (lum < effectiveThr) : (lum > effectiveThr);
+              if (hit) {
+                // 饱和增强 + gamma 校正
                 const rv = data[i], gv = data[i+1], bv = data[i+2];
-                // 轻微提升饱和
                 const avg = (rv + gv + bv) / 3;
-                const satBoost = 1.3;
-                const rr = Math.min(255, Math.max(0, avg + (rv - avg) * satBoost));
-                const gg = Math.min(255, Math.max(0, avg + (gv - avg) * satBoost));
-                const bb = Math.min(255, Math.max(0, avg + (bv - avg) * satBoost));
+                const boost = pixelInvert ? 1.6 : 1.3;   // 反色源通常是黑白，彩化需要更强饱和
+                const rr = Math.min(255, Math.max(0, avg + (rv - avg) * boost));
+                const gg = Math.min(255, Math.max(0, avg + (gv - avg) * boost));
+                const bb = Math.min(255, Math.max(0, avg + (bv - avg) * boost));
                 ctx.fillStyle = `rgb(${rr|0},${gg|0},${bb|0})`;
-              } else {
-                ctx.fillStyle = '#ffffff';
+                const cx = c * stepX + stepX * 0.5 + jx;
+                const cy = r * stepY + stepY * 0.5 + jy;
+                ctx.beginPath();
+                ctx.arc(cx, cy, baseSize, 0, Math.PI * 2);
+                ctx.fill();
               }
-              ctx.fill();
+            }
+          }
+        } else {
+          // 黑白点阵
+          ctx.fillStyle = pixelInvert ? '#000000' : '#ffffff';
+          for (let r = 0; r < pixelRows; r++) {
+            for (let c = 0; c < pixelCols; c++) {
+              const i = (r * pixelCols + c) * 4;
+              const lum = (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114);
+              const hit = pixelInvert ? (lum < effectiveThr) : (lum > effectiveThr);
+              if (hit) {
+                const cx = c * stepX + stepX * 0.5 + jx;
+                const cy = r * stepY + stepY * 0.5 + jy;
+                ctx.beginPath();
+                ctx.arc(cx, cy, baseSize, 0, Math.PI * 2);
+                ctx.fill();
+              }
             }
           }
         }
+
+        // 4) CRT 扫描线叠加（淡灰色横线 + 轻微亮度调制）
+        if (pixelCRT) {
+          const lineGap = Math.max(2, Math.min(4, canvas.height / 200));
+          ctx.fillStyle = 'rgba(0,0,0,0.22)';
+          for (let y = 0; y < canvas.height; y += lineGap * 2) {
+            ctx.fillRect(0, y, canvas.width, lineGap);
+          }
+          // 顶部渐变暗角
+          const vg = ctx.createRadialGradient(
+            canvas.width/2, canvas.height/2, canvas.height*0.3,
+            canvas.width/2, canvas.height/2, canvas.height*0.9
+          );
+          vg.addColorStop(0, 'rgba(0,0,0,0)');
+          vg.addColorStop(1, 'rgba(0,0,0,0.35)');
+          ctx.fillStyle = vg;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
       } catch(e) {
-        // 跨源视频会在这里 throw —— 提示用户
         if (window._pixelWarned !== true) {
           window._pixelWarned = true;
-          console.warn('点阵视频：跨源被拦截，请上传本地视频文件。', e.message);
-          toast('⚠️ 腾讯视频跨源被拦截，请点 🎬 点阵视频 → 选本地视频文件');
+          console.warn('点阵视频：跨源被拦截', e.message);
+          toast('⚠️ 跨源被拦截，请选本地视频文件');
           pixelMode = false;
           const b = document.getElementById('pixelVideoBtn');
           if (b) { b.classList.remove('active'); b.textContent = '🎬 点阵视频'; }
@@ -3096,14 +3168,49 @@ refreshSoundBtn();
     });
   })();
 
-  // ===== 🎨 点阵视频：黑白 ↔ 彩色 切换 =====
+  // ===== 🎨 点阵视频增强：黑白 ↔ 彩色 / 反相 / CRT 开关 =====
   let pixelColorMode = false;
   window.__pixelColorToggle = function() {
     pixelColorMode = !pixelColorMode;
+    toast(pixelColorMode ? '🎨 点阵彩色模式 ON' : '⬛ 点阵黑白模式');
     return pixelColorMode;
   };
-  // patch 一下 pixelator 让它支持彩色
-  // （在上面的 animate 绘制里动态判断 pixelColorMode）
+  window.__pixelInvertToggle = function() {
+    pixelInvert = !pixelInvert;
+    toast(pixelInvert ? '🎬 反相模式 ON（白底黑点源视频）' : '🎬 普通模式（正常视频）');
+    return pixelInvert;
+  };
+  window.__pixelCRTToggle = function() {
+    pixelCRT = !pixelCRT;
+    toast(pixelCRT ? '📺 CRT 扫描线 ON' : '📺 CRT 扫描线 OFF');
+    return pixelCRT;
+  };
+
+  // ===== ⌨️ V/I/X 快捷切换点阵视频各种效果 =====
+  window.addEventListener('keydown', (e) => {
+    const ae = document.activeElement;
+    if (ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) return;
+    if (e.key === 'v' || e.key === 'V') {
+      // V = 点阵视频开关
+      if (window.__pixelMode) window.__pixelMode.toggle();
+      const b = document.getElementById('pixelVideoBtn');
+      if (b) {
+        const on = !b.classList.contains('active');
+        b.classList.toggle('active', on);
+        b.textContent = on ? '🎬 铁山靠ON' : '🎬 点阵视频';
+      }
+    } else if (e.key === 'i' || e.key === 'I') {
+      window.__pixelInvertToggle();
+    } else if (e.key === 'x' || e.key === 'X') {
+      window.__pixelColorToggle();
+    } else if (e.key === 'c' || e.key === 'C') {
+      // 注意：原 C 键是 📺 原版视频 —— 冲突了？检查下
+      // 哦原 C 是 panel DEFS 里的，我们的 keydown 监听器应该先被 panel 拦截吗？
+      // panel 里的 C 是 action 触发，需要看它是怎么绑定的。
+    } else if (e.key === 'f' || e.key === 'F') {
+      // F 已经被 rainbowOverlay 用了？跳过
+    }
+  });
 
   // 窗口 resize 时重新排布
   window.addEventListener('resize', () => {
