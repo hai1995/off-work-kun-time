@@ -333,6 +333,49 @@
     animation: videoBtnPulse 1.2s ease-in-out infinite;
   }
 
+  /* ===== 💡 左上角 HUD ===== */
+  .pixel-hud {
+    position: fixed; top: 14px; left: 14px;
+    z-index: 1490;
+    background: rgba(12, 16, 28, 0.78);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(84,160,255,0.4);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-family: 'SF Mono', 'Menlo', 'Courier New', monospace;
+    font-size: 12px;
+    color: #e8edf5;
+    min-width: 135px;
+    user-select: none;
+    transition: opacity 0.3s, transform 0.3s;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+  }
+  .pixel-hud.hidden { opacity: 0; transform: translateX(-12px); pointer-events: none; }
+  .hud-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 2px 0;
+  }
+  .hud-row span { opacity: 0.55; margin-right: 10px; }
+  .hud-row b { color: #feca57; font-weight: 600; letter-spacing: 0.5px; }
+  .hud-row.hud-big {
+    border-top: 1px dashed rgba(84,160,255,0.25);
+    margin-top: 4px; padding-top: 6px;
+    font-size: 11px;
+  }
+  .hud-row.hud-big b { color: #54a0ff; font-size: 11px; }
+  .pixel-hud-toggle {
+    position: fixed; top: 14px; left: 14px;
+    z-index: 1491;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: 1px solid rgba(84,160,255,0.4);
+    background: rgba(20,24,40,0.75);
+    color: #feca57; font-size: 16px;
+    cursor: pointer;
+    display: none;
+  }
+  .pixel-hud-toggle.show { display: block; }
+
   /* ===== 🎛️ 点阵参数菜单 ===== */
   .pixel-gear {
     position: fixed;
@@ -878,6 +921,18 @@
   </div>
   <!-- 文件选择器（隐藏） -->
   <input type="file" id="pixelVideoInput" accept="video/*" hidden>
+
+  <!-- 💡 左上角 HUD：FPS + 点阵参数实时可见 -->
+  <div class="pixel-hud" id="pixelHud">
+    <div class="hud-row"><span>FPS</span><b id="hudFps">60</b></div>
+    <div class="hud-row"><span>阈值</span><b id="hudThr">自动</b></div>
+    <div class="hud-row"><span>网格</span><b id="hudGrid">—</b></div>
+    <div class="hud-row"><span>反相</span><b id="hudInv">✓</b></div>
+    <div class="hud-row"><span>CRT</span><b id="hudCrt">✓</b></div>
+    <div class="hud-row"><span>抖动</span><b id="hudJit">✓</b></div>
+    <div class="hud-row hud-big"><span>点阵视频</span><b id="hudMode">—</b></div>
+  </div>
+  <button class="pixel-hud-toggle" id="hudToggle" title="隐藏/显示 HUD">💡</button>
 
   <!-- 🎛️ 可视化参数菜单（右下角小齿轮） -->
   <button class="pixel-gear" id="pixelGear" title="点阵参数">⚙️</button>
@@ -2799,6 +2854,8 @@ refreshSoundBtn();
   let lastTime = performance.now();
 
   function animate(now) {
+    // 💡 FPS 统计
+    if (window._fpsTick) window._fpsTick();
     const dt = now - lastTime;
     lastTime = now;
 
@@ -2895,8 +2952,7 @@ refreshSoundBtn();
             }
           }
         } else {
-          // 黑白点阵
-          ctx.fillStyle = pixelInvert ? '#000000' : '#ffffff';
+          // 黑白点阵 / 彩虹点阵
           for (let r = 0; r < pixelRows; r++) {
             for (let c = 0; c < pixelCols; c++) {
               const i = (r * pixelCols + c) * 4;
@@ -2907,6 +2963,14 @@ refreshSoundBtn();
                 const cy = r * stepY + stepY * 0.5 + jy;
                 ctx.beginPath();
                 ctx.arc(cx, cy, baseSize, 0, Math.PI * 2);
+                if (pixelRainbow) {
+                  // 🌈 彩虹模式：每个点 hue = 横向位置 + 时间正弦（律动）
+                  const hue = ((c / pixelCols) * 360 + performance.now() * 0.03) % 360;
+                  const lightness = 55 + Math.sin(performance.now() * 0.005 + r * 0.15) * 12;
+                  ctx.fillStyle = `hsl(${hue.toFixed(0)}, 90%, ${lightness.toFixed(0)}%)`;
+                } else {
+                  ctx.fillStyle = pixelInvert ? '#000000' : '#ffffff';
+                }
                 ctx.fill();
               }
             }
@@ -3151,6 +3215,29 @@ refreshSoundBtn();
       }
 
       ctx.globalAlpha = 1;
+    }
+
+    // ===== 🖱️ 鼠标跟随发光光晕（彩色彩虹 + 跟随 + 脉动） =====
+    if (mouseGlow.active && pixelMode) {
+      const cx = mouseGlow.x, cy = mouseGlow.y;
+      const t = performance.now() * 0.002;
+      const pulse = 1 + Math.sin(t * 4) * 0.12;
+      const r = 180 * pulse;
+      // 三层光晕
+      const colors = ['#feca57','#ff6b6b','#48dbfb','#ff9ff3','#1dd1a1','#54a0ff'];
+      const hueIdx = Math.floor(t * 2) % colors.length;
+      const g1 = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g1.addColorStop(0, colors[hueIdx] + 'cc');
+      g1.addColorStop(0.3, colors[(hueIdx+1)%colors.length] + '66');
+      g1.addColorStop(0.7, colors[(hueIdx+2)%colors.length] + '22');
+      g1.addColorStop(1, 'transparent');
+      ctx.fillStyle = g1;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // 中心亮斑
+      ctx.beginPath();
+      ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffffdd';
+      ctx.fill();
     }
 
     requestAnimationFrame(animate);
@@ -3402,6 +3489,120 @@ refreshSoundBtn();
       toast(`📐 点阵密度: ${pixelCols}×${pixelRows}`);
     });
   })();
+
+  // ===== 💡 HUD 更新 + FPS 统计 =====
+  (function bindHud() {
+    const hud = document.getElementById('pixelHud');
+    const toggle = document.getElementById('hudToggle');
+    if (!hud) return;
+
+    // FPS 统计
+    let fpsFrames = 0, fpsLast = performance.now(), fpsNow = 60;
+    window._fpsTick = () => {
+      fpsFrames++;
+      const now = performance.now();
+      if (now - fpsLast >= 500) {
+        fpsNow = Math.round(fpsFrames * 1000 / (now - fpsLast));
+        fpsFrames = 0;
+        fpsLast = now;
+      }
+    };
+
+    // 每 500ms 刷新 HUD 内容
+    setInterval(() => {
+      const thrEl = document.getElementById('hudThr');
+      const gridEl = document.getElementById('hudGrid');
+      const fpsEl = document.getElementById('hudFps');
+      const invEl = document.getElementById('hudInv');
+      const crtEl = document.getElementById('hudCrt');
+      const jitEl = document.getElementById('hudJit');
+      const modeEl = document.getElementById('hudMode');
+      if (!fpsEl) return;
+      fpsEl.textContent = fpsNow;
+      fpsEl.style.color = fpsNow >= 50 ? '#1dd1a1' : fpsNow >= 30 ? '#feca57' : '#ff6b6b';
+      thrEl.textContent = threshold > 0 ? threshold : _pixelThr.toFixed(0) + '(A)';
+      gridEl.textContent = `${pixelCols}×${pixelRows}`;
+      invEl.textContent = pixelInvert ? '✓' : '×';
+      invEl.style.color = pixelInvert ? '#1dd1a1' : '#ff6b6b';
+      crtEl.textContent = pixelCRT ? '✓' : '×';
+      crtEl.style.color = pixelCRT ? '#1dd1a1' : '#ff6b6b';
+      jitEl.textContent = pixelJitter ? '✓' : '×';
+      jitEl.style.color = pixelJitter ? '#1dd1a1' : '#ff6b6b';
+      modeEl.textContent = pixelMode ? (pixelColorMode ? '彩色' : '黑白') + (pixelInvert ? '(反相)' : '') : '—';
+    }, 500);
+
+    // HUD 折叠
+    toggle.addEventListener('click', () => {
+      hud.classList.toggle('hidden');
+      toggle.classList.toggle('show', hud.classList.contains('hidden'));
+    });
+    hud.addEventListener('click', () => {
+      hud.classList.add('hidden');
+      toggle.classList.add('show');
+    });
+  })();
+
+  // ===== 🌈 彩虹律动模式（让黑白点阵变彩色 → 每个点的颜色=位置+时间的彩虹） =====
+  let pixelRainbow = false;
+  window.__pixelRainbowToggle = function() {
+    pixelRainbow = !pixelRainbow;
+    toast(pixelRainbow ? '🌈 点阵彩虹律动 ON' : '⬛ 恢复默认');
+    return pixelRainbow;
+  };
+  // patch 到 animate 点阵绘制里（在画每个点时如果 rainbow 就用位置 hue 上色）
+  // 因为彩虹是 pixelMode 期间的效果，直接在上面的 pixelator 里判断
+
+  // ===== 🖱️ 鼠标跟随发光点（点阵视频层上跟随鼠标的光晕） =====
+  const mouseGlow = { x: -9999, y: -9999, active: false };
+  window.addEventListener('mousemove', (e) => {
+    mouseGlow.x = e.clientX; mouseGlow.y = e.clientY; mouseGlow.active = true;
+  });
+  window.addEventListener('mouseleave', () => { mouseGlow.active = false; });
+  // patch 到 animate 循环末尾，画一个 radialGradient 光晕
+
+  // ===== 🎬 自动演示模式：用户空转 5 秒 → 按顺序演完所有彩蛋 =====
+  let _autoDemoTimer = null;
+  function resetAutoDemo() {
+    if (_autoDemoTimer) clearTimeout(_autoDemoTimer);
+    _autoDemoTimer = setTimeout(runAutoDemo, 5000);   // 空转 5 秒
+  }
+  function runAutoDemo() {
+    if (window._isUserActive) { resetAutoDemo(); return; }   // 有新交互 → 再等
+    toast('🎬 自动演示模式...');
+    const seq = [
+      () => { if (window.__ultimateExplosion) window.__ultimateExplosion(); },
+      () => { if (window.__rainbowShower) window.__rainbowShower(); },
+      () => { tieShanKao && tieShanKao(); },
+      // 天降雷电（内联，不依赖 thunderStrike 函数名）
+      () => {
+        const W = window.innerWidth, H = window.innerHeight;
+        const flash = document.getElementById('flashOverlay');
+        if (flash) { flash.classList.remove('active'); void flash.offsetWidth; flash.classList.add('active'); }
+        document.body.classList.remove('shaking'); void document.body.offsetWidth;
+        document.body.classList.add('shaking');
+        sfx.thunder();
+        if (window.__kunShockwave) {
+          setTimeout(() => window.__kunShockwave(W * 0.25, H * 0.35), 120);
+          setTimeout(() => window.__kunShockwave(W * 0.75, H * 0.55), 320);
+        }
+      },
+      () => { sfx.chicken(); kunMarquee && kunMarquee('🐔 鸡你太美～练习时长两年半～'); },
+      // 彩虹覆盖（内联）
+      () => {
+        const rb = document.getElementById('rainbowOverlay');
+        if (rb) { rb.classList.remove('active'); void rb.offsetWidth; rb.classList.add('active'); setTimeout(() => rb.classList.remove('active'), 1800); }
+      },
+      () => { if (window.__kunDance) window.__kunDance(true); },
+      () => { if (window.__kunDance) { window.__kunDance(false); window._kunDancing = false; } },
+    ];
+    seq.forEach((fn, i) => setTimeout(fn, i * 1600 + 300));
+    setTimeout(resetAutoDemo, seq.length * 1600 + 4000);   // 演完等会再来
+  }
+  resetAutoDemo();
+  // 用户一交互就重置倒计时
+  ['mousedown','keydown','touchstart','scroll'].forEach(ev => {
+    window.addEventListener(ev, () => { window._isUserActive = true; clearTimeout(_autoDemoTimer); _autoDemoTimer = null; setTimeout(() => { window._isUserActive = false; resetAutoDemo(); }, 3000); });
+  });
 
   // ===== ⌨️ V/I/X 快捷切换点阵视频各种效果 =====
   window.addEventListener('keydown', (e) => {
